@@ -131,16 +131,16 @@ func decodeValue(buf *bytes.Buffer, valType BuftiType) (any, error) {
 
 		modelName, isModel := isModelType(valType)
 		if isModel {
-			model, exists := registeredModels[modelName]
+			model, exists := registeredModels.get(modelName)
 			if !exists {
 				return nil, fmt.Errorf("%w: can not find the model %s", ErrModel, modelName)
 			}
 
-			bu, err := model.decode(buf, size)
+			pl, err := model.decode(buf, size)
 			if err != nil {
 				return nil, err
 			}
-			return bu, nil
+			return pl, nil
 		}
 
 		return nil, fmt.Errorf("%w: invalid type (%s)", ErrBufferFormat, valType)

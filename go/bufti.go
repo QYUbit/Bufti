@@ -4,16 +4,17 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sync"
 )
 
 const MajorVersion = 0
 
 var (
-	ErrModel        = errors.New("invalid bufti model")
-	ErrVersion      = errors.New("incompatible version")
-	ErrNilSlice     = errors.New("bytes slice is nil")
-	ErrBufferFormat = errors.New("unexpected buffer format")
-	ErrMapFormat    = errors.New("unexpected bufti map format")
+	ErrModel         = errors.New("invalid bufti model")
+	ErrVersion       = errors.New("incompatible version")
+	ErrNilSlice      = errors.New("bytes slice is nil")
+	ErrBufferFormat  = errors.New("unexpected buffer format")
+	ErrPayloadFormat = errors.New("unexpected bufti payload format")
 )
 
 type BuftiType string
@@ -70,6 +71,26 @@ func NewField(index int, label string, fieldType BuftiType) Field {
 	}
 }
 
+type modelRegister struct {
+	models map[string]*Model
+	mu     sync.Mutex
+}
+
+func (mr *modelRegister) register(model *Model) {
+	mr.mu.Lock()
+	mr.models[model.name] = model
+	mr.mu.Unlock()
+}
+
+func (mr *modelRegister) get(name string) (*Model, bool) {
+	mr.mu.Lock()
+	model, exists := mr.models[name]
+	mr.mu.Unlock()
+	return model, exists
+}
+
+var registeredModels = modelRegister{models: make(map[string]*Model)}
+
 type fieldSchema struct {
 	label     string
 	fieldType BuftiType
@@ -81,14 +102,12 @@ type Model struct {
 	labels map[string]byte
 }
 
-var registeredModels = make(map[string]*Model)
-
 // Creates a new model which represents the way data gets en/decoded. Model name has to be unique. Panics when given unexpected inputs. Do not use this function in seperate go routines.
 func NewModel(name string, fields ...Field) *Model {
 	if name == "" {
 		panic("model name must not be empty")
 	}
-	if _, exists := registeredModels[name]; exists {
+	if _, exists := registeredModels.get(name); exists {
 		panic(fmt.Sprintf("model with name \"%s\" already exists", name))
 	}
 
@@ -97,7 +116,7 @@ func NewModel(name string, fields ...Field) *Model {
 		schema: make(map[byte]fieldSchema),
 		labels: make(map[string]byte),
 	}
-	registeredModels[name] = m
+	registeredModels.register(m)
 
 	for _, f := range fields {
 		if _, exists := m.labels[f.label]; exists {

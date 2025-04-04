@@ -20,7 +20,7 @@ func TestBasic(t *testing.T) {
 		NewField(5, "city", NewModelType(city)),
 	)
 
-	bu := map[string]any{
+	pl := map[string]any{
 		"name":    "alice",
 		"age":     33,
 		"height":  6.6,
@@ -32,28 +32,28 @@ func TestBasic(t *testing.T) {
 		},
 	}
 
-	b, err := person.Encode(bu)
+	b, err := person.Encode(pl)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Log(b)
 
-	bu2, err := person.Decode(b)
+	pl2, err := person.Decode(b)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(bu2)
+	t.Log(pl2)
 }
 
 func TestListType(t *testing.T) {
 	model := NewModel("listTest",
 		NewField(0, "numbers", NewListType(Int32Type)),
 	)
-	bu := map[string]any{
+	pl := map[string]any{
 		"numbers": []int32{1, 2, 3},
 	}
 
-	b, err := model.Encode(bu)
+	b, err := model.Encode(pl)
 	if err != nil {
 		t.Fatalf("Encoding failed for list type: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestMapType(t *testing.T) {
 		NewField(0, "populations", NewMapType(StringType, Int32Type)),
 	)
 
-	bu := map[string]any{
+	pl := map[string]any{
 		"populations": map[string]int32{
 			"New York":    8419000,
 			"Los Angeles": 3980000,
@@ -79,17 +79,17 @@ func TestMapType(t *testing.T) {
 		},
 	}
 
-	b, err := cityPopulationModel.Encode(bu)
+	b, err := cityPopulationModel.Encode(pl)
 	if err != nil {
 		t.Fatalf("Encoding failed for map type: %v", err)
 	}
 	t.Log("Encoded map type:", b)
 
-	bu2, err := cityPopulationModel.Decode(b)
+	pl2, err := cityPopulationModel.Decode(b)
 	if err != nil {
 		t.Fatalf("Decoding failed for map type: %v", err)
 	}
-	t.Log("Decoded map type:", bu2)
+	t.Log("Decoded map type:", pl2)
 }
 
 func TestModelType(t *testing.T) {
@@ -100,13 +100,13 @@ func TestModelType(t *testing.T) {
 		NewField(0, "nested", NewModelType(nested)),
 	)
 
-	bu := map[string]any{
+	pl := map[string]any{
 		"nested": map[string]any{
 			"id": 42,
 		},
 	}
 
-	b, err := main.Encode(bu)
+	b, err := main.Encode(pl)
 	if err != nil {
 		t.Fatalf("Encoding failed for model type: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestMatrix(t *testing.T) {
 		NewField(3, "a", NewListType(NewListType(BoolType))),
 	)
 
-	bu := map[string]any{
+	pl := map[string]any{
 		"a": [][]bool{
 			{true, false},
 			{false, true},
@@ -134,17 +134,17 @@ func TestMatrix(t *testing.T) {
 
 	fmt.Println(model)
 
-	b, err := model.Encode(bu)
+	b, err := model.Encode(pl)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Log(b)
 
-	bu2, err := model.Decode(b)
+	pl2, err := model.Decode(b)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(bu2)
+	t.Log(pl2)
 }
 
 func TestEmptyFields(t *testing.T) {
@@ -154,19 +154,19 @@ func TestEmptyFields(t *testing.T) {
 		NewField(2, "height", Float64Type),
 	)
 
-	bu := map[string]any{}
+	pl := map[string]any{}
 
-	b, err := person.Encode(bu)
+	b, err := person.Encode(pl)
 	if err != nil {
 		t.Fatalf("Encoding failed for empty fields: %v", err)
 	}
 	t.Log("Encoded empty fields:", b)
 
-	bu2, err := person.Decode(b)
+	pl2, err := person.Decode(b)
 	if err != nil {
 		t.Fatalf("Decoding failed for empty fields: %v", err)
 	}
-	t.Log("Decoded empty fields:", bu2)
+	t.Log("Decoded empty fields:", pl2)
 }
 
 func TestInvalidFieldType(t *testing.T) {
@@ -175,12 +175,12 @@ func TestInvalidFieldType(t *testing.T) {
 		NewField(1, "age", Int8Type),
 	)
 
-	bu := map[string]any{
+	pl := map[string]any{
 		"name": 12345, // Invalid type
 		"age":  25,
 	}
 
-	_, err := person.Encode(bu)
+	_, err := person.Encode(pl)
 	if err == nil {
 		t.Fatal("Expected error for invalid field type, but got none")
 	}
@@ -197,7 +197,7 @@ func TestDeeplyNestedStructure(t *testing.T) {
 		NewField(0, "details", NewModelType(nestedModel)),
 	)
 
-	bu := map[string]any{
+	pl := map[string]any{
 		"details": map[string]any{
 			"id": 42,
 			"attributes": [][]string{
@@ -207,17 +207,17 @@ func TestDeeplyNestedStructure(t *testing.T) {
 		},
 	}
 
-	b, err := mainModel.Encode(bu)
+	b, err := mainModel.Encode(pl)
 	if err != nil {
 		t.Fatalf("Encoding failed for deeply nested structure: %v", err)
 	}
 	t.Log("Encoded deeply nested structure:", b)
 
-	bu2, err := mainModel.Decode(b)
+	pl2, err := mainModel.Decode(b)
 	if err != nil {
 		t.Fatalf("Decoding failed for deeply nested structure: %v", err)
 	}
-	t.Log("Decoded deeply nested structure:", bu2)
+	t.Log("Decoded deeply nested structure:", pl2)
 }
 
 func TestNullValues(t *testing.T) {
@@ -226,12 +226,12 @@ func TestNullValues(t *testing.T) {
 		NewField(1, "age", Int8Type),
 	)
 
-	bu := map[string]any{
+	pl := map[string]any{
 		"name": nil, // Null value
 		"age":  nil, // Null value
 	}
 
-	_, err := person.Encode(bu)
+	_, err := person.Encode(pl)
 	if err == nil {
 		t.Fatal("Expected error for invalid field type, but got none")
 	}
@@ -243,11 +243,11 @@ func TestListWithMixedTypes(t *testing.T) {
 		NewField(0, "hobbies", NewListType(StringType)),
 	)
 
-	bu := map[string]any{
+	pl := map[string]any{
 		"hobbies": []any{"reading", 123, true}, // Mixed types
 	}
 
-	_, err := person.Encode(bu)
+	_, err := person.Encode(pl)
 	if err == nil {
 		t.Fatal("Expected error for list with mixed types, but got none")
 	}
@@ -275,7 +275,7 @@ func TestMapTypeMixedValueTypes(t *testing.T) {
 		NewField(0, "populations", NewMapType(StringType, Int32Type)),
 	)
 
-	bu := map[string]any{
+	pl := map[string]any{
 		"populations": map[string]any{
 			"New York":    8419000,
 			"Los Angeles": "invalid type",
@@ -283,7 +283,7 @@ func TestMapTypeMixedValueTypes(t *testing.T) {
 		},
 	}
 
-	_, err := cityPopulationModel.Encode(bu)
+	_, err := cityPopulationModel.Encode(pl)
 	if err == nil {
 		t.Fatal("Expected error for mixed value types in map, but got none")
 	}
@@ -295,11 +295,11 @@ func TestIncompatibleVersion(t *testing.T) {
 		NewField(0, "name", StringType),
 	)
 
-	bu := map[string]any{
+	pl := map[string]any{
 		"name": "someName",
 	}
 
-	b, err := model.Encode(bu)
+	b, err := model.Encode(pl)
 	if err != nil {
 		t.Fatal(err)
 	}
