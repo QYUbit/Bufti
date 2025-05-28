@@ -80,7 +80,7 @@ class Parser():
 
     def write_int16(self, value: int) -> None:
         self.off = 0
-        self.buf = struct.pack("!h", value)
+        self.buf = bytearray(struct.pack("!h", value))
 
     def write_int32(self, value: int) -> None:
         self.off = 0

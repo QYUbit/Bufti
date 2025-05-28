@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from parser import Parser
 from errors import ModelError, DictFormatError, EndOfBytesError, BufferFormatError
+from typing import Any
 
 MAJOR_VERSION = 0
 
@@ -72,12 +73,12 @@ class Model:
 
         registered_models[self.name] = self
 
-    def encode(self, values: dict[str, object]) -> bytes:
+    def encode(self, values: dict[str, Any]) -> bytes:
         parser = Parser(bytearray())
         self._encode(parser, values)
         return parser.get_bytes()
 
-    def _encode(self, parser: Parser, values: dict[str, object]) -> None:
+    def _encode(self, parser: Parser, values: dict[str, Any]) -> None:
         for label, value in values.items():
             try:
                 index = self.labels[label]
@@ -92,7 +93,7 @@ class Model:
             parser.write_uint8(index)
             self._encode_value(parser, value, field.type)
 
-    def _encode_value(self, parser: Parser, value: object, field_type: str) -> None:
+    def _encode_value(self, parser: Parser, value: Any, field_type: str) -> None:
         if field_type == INT8_TYPE:
             parser.write_int8(value)
         if field_type == INT16_TYPE:
@@ -138,11 +139,11 @@ class Model:
             model._encode(parser, value)
 
     def decode(self, buffer: bytes) -> dict[str, object]:
-        parser = Parser(buffer)
+        parser = Parser(bytearray(buffer))
         return self._decode(parser, len(buffer))
 
-    def _decode(self, parser: Parser, limit: int) -> dict[str, any]:
-        bu: dict[str, any] = {}
+    def _decode(self, parser: Parser, limit: int) -> dict[str, Any]:
+        bu: dict[str, Any] = {}
         for _ in range(limit):
             try:
                 index = parser.read_uint8()
@@ -158,7 +159,7 @@ class Model:
             bu[field.label] = val
         return bu
         
-    def _decode_value(self, parser: Parser, field_type: str) -> any:
+    def _decode_value(self, parser: Parser, field_type: str) -> Any:
         if field_type == INT8_TYPE:
             return parser.read_int8()
         if field_type == INT16_TYPE:
@@ -181,7 +182,7 @@ class Model:
             element_type = field_type.removeprefix("list:")
             size = parser.read_uint16()
 
-            parse_list: list[any] = []
+            parse_list: list[Any] = []
             for _ in range(size):
                 item = self._decode_value(parser, element_type)
                 parse_list.append(item)
@@ -193,7 +194,7 @@ class Model:
                 raise ModelError(f"invalid map type in model {self.name} ({field_type})")
             size = parser.read_uint16()
 
-            parse_dict: dict[any, any] = {}
+            parse_dict: dict[Any, Any] = {}
             for _ in range(size):
                 key = self._decode_value(parser, parts[1])
                 val = self._decode_value(parser, parts[2])
