@@ -11,20 +11,20 @@ import (
 type BuftiType interface {
 	getName() string
 	encode(*bytes.Buffer, any) error
-	decode(*bytes.Buffer) (any, error)
+	decode(*bytes.Buffer, reflect.Value) error
 }
 
 type SimpleType int
 
 const (
-	Int8Type SimpleType = iota
-	Int16Type
-	Int32Type
-	Int64Type
-	Float32Type
-	Float64Type
-	BoolType
-	StringType
+	Int8 SimpleType = iota
+	Int16
+	Int32
+	Int64
+	Float32
+	Float64
+	Bool
+	String
 )
 
 func (t SimpleType) getName() string {
@@ -38,7 +38,7 @@ func (t SimpleType) String() string {
 
 func (t SimpleType) encode(buf *bytes.Buffer, value any) error {
 	switch t {
-	case Int8Type:
+	case Int8:
 		var v int8
 		switch val := value.(type) {
 		case int8:
@@ -68,7 +68,7 @@ func (t SimpleType) encode(buf *bytes.Buffer, value any) error {
 		}
 		return binary.Write(buf, binary.LittleEndian, v)
 
-	case Int16Type:
+	case Int16:
 		var v int16
 		switch val := value.(type) {
 		case int16:
@@ -95,7 +95,7 @@ func (t SimpleType) encode(buf *bytes.Buffer, value any) error {
 		}
 		return binary.Write(buf, binary.LittleEndian, v)
 
-	case Int32Type:
+	case Int32:
 		var v int32
 		switch val := value.(type) {
 		case int32:
@@ -119,7 +119,7 @@ func (t SimpleType) encode(buf *bytes.Buffer, value any) error {
 		}
 		return binary.Write(buf, binary.LittleEndian, v)
 
-	case Int64Type:
+	case Int64:
 		var v int64
 		switch val := value.(type) {
 		case int64:
@@ -137,7 +137,7 @@ func (t SimpleType) encode(buf *bytes.Buffer, value any) error {
 		}
 		return binary.Write(buf, binary.LittleEndian, v)
 
-	case Float32Type:
+	case Float32:
 		var v float32
 		switch val := value.(type) {
 		case float32:
@@ -152,7 +152,7 @@ func (t SimpleType) encode(buf *bytes.Buffer, value any) error {
 		}
 		return binary.Write(buf, binary.LittleEndian, v)
 
-	case Float64Type:
+	case Float64:
 		var v float64
 		switch val := value.(type) {
 		case float64:
@@ -164,7 +164,7 @@ func (t SimpleType) encode(buf *bytes.Buffer, value any) error {
 		}
 		return binary.Write(buf, binary.LittleEndian, v)
 
-	case BoolType:
+	case Bool:
 		v, ok := value.(bool)
 		if !ok {
 			return fmt.Errorf("expected bool, got %T", value)
@@ -175,7 +175,7 @@ func (t SimpleType) encode(buf *bytes.Buffer, value any) error {
 		}
 		return buf.WriteByte(b)
 
-	case StringType:
+	case String:
 		v, ok := value.(string)
 		if !ok {
 			return fmt.Errorf("expected string, got %T", value)
@@ -191,15 +191,88 @@ func (t SimpleType) encode(buf *bytes.Buffer, value any) error {
 	}
 }
 
-func (t SimpleType) decode(buf *bytes.Buffer) (any, error) {
-	return nil, nil
+func (t SimpleType) decode(buf *bytes.Buffer, val reflect.Value) error {
+	switch t {
+	case Int8:
+		var v int8
+		if err := binary.Read(buf, binary.LittleEndian, &v); err != nil {
+			return fmt.Errorf("failed to decode int8: %w", err)
+		}
+		return nil
+
+	case Int16:
+		var v int16
+		if err := binary.Read(buf, binary.LittleEndian, &v); err != nil {
+			return fmt.Errorf("failed to decode int16: %w", err)
+		}
+		return nil
+
+	case Int32:
+		var v int32
+		if err := binary.Read(buf, binary.LittleEndian, &v); err != nil {
+			return fmt.Errorf("failed to decode int32: %w", err)
+		}
+		return nil
+
+	case Int64:
+		var v int64
+		if err := binary.Read(buf, binary.LittleEndian, &v); err != nil {
+			return fmt.Errorf("failed to decode int64: %w", err)
+		}
+		return nil
+
+	case Float32:
+		var v float32
+		if err := binary.Read(buf, binary.LittleEndian, &v); err != nil {
+			return fmt.Errorf("failed to decode float32: %w", err)
+		}
+		return nil
+
+	case Float64:
+		var v float64
+		if err := binary.Read(buf, binary.LittleEndian, &v); err != nil {
+			return fmt.Errorf("failed to decode float64: %w", err)
+		}
+		return nil
+
+	case Bool:
+		_, err := buf.ReadByte()
+		if err != nil {
+			return fmt.Errorf("failed to decode bool: %w", err)
+		}
+		return nil
+
+	case String:
+		var length uint32
+		if err := binary.Read(buf, binary.LittleEndian, &length); err != nil {
+			return fmt.Errorf("failed to decode string length: %w", err)
+		}
+
+		if length > uint32(buf.Len()) {
+			return fmt.Errorf("string length %d exceeds buffer size %d", length, buf.Len())
+		}
+
+		data := make([]byte, length)
+		n, err := buf.Read(data)
+		if err != nil {
+			return fmt.Errorf("failed to decode string data: %w", err)
+		}
+		if n != int(length) {
+			return fmt.Errorf("expected to read %d bytes, got %d", length, n)
+		}
+
+		return nil
+
+	default:
+		return fmt.Errorf("unknown SimpleType: %d", t)
+	}
 }
 
 type ListType struct {
 	elementType BuftiType
 }
 
-func NewList(elementType BuftiType) ListType {
+func List(elementType BuftiType) ListType {
 	return ListType{elementType: elementType}
 }
 
@@ -231,8 +304,8 @@ func (t ListType) encode(buf *bytes.Buffer, value any) error {
 	return nil
 }
 
-func (t ListType) decode(buf *bytes.Buffer) (any, error) {
-	return nil, nil
+func (t ListType) decode(buf *bytes.Buffer, val reflect.Value) error {
+	return nil
 }
 
 type MapType struct {
@@ -240,7 +313,7 @@ type MapType struct {
 	valueType BuftiType
 }
 
-func NewMap(keyType SimpleType, valueType BuftiType) MapType {
+func Map(keyType SimpleType, valueType BuftiType) MapType {
 	return MapType{keyType: keyType, valueType: valueType}
 }
 
@@ -275,15 +348,15 @@ func (t MapType) encode(buf *bytes.Buffer, value any) error {
 	return nil
 }
 
-func (t MapType) decode(buf *bytes.Buffer) (any, error) {
-	return nil, nil
+func (t MapType) decode(buf *bytes.Buffer, val reflect.Value) error {
+	return nil
 }
 
 type ReferenceType struct {
 	model *Model
 }
 
-func NewReference(model *Model) ReferenceType {
+func Reference(model *Model) ReferenceType {
 	return ReferenceType{model: model}
 }
 
@@ -299,6 +372,6 @@ func (t ReferenceType) encode(buf *bytes.Buffer, data any) error {
 	return t.model.encode(buf, data)
 }
 
-func (t ReferenceType) decode(buf *bytes.Buffer) (any, error) {
-	return nil, nil
+func (t ReferenceType) decode(buf *bytes.Buffer, val reflect.Value) error {
+	return nil
 }

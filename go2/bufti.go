@@ -5,20 +5,22 @@ import (
 	"sync"
 )
 
+const ProtocolVersion uint32 = 2
+
 var bufferPool = sync.Pool{
 	New: func() any {
 		return bytes.NewBuffer(make([]byte, 0, 512))
 	},
 }
 
-type Field struct {
+type ModelField struct {
 	index     byte
 	label     string
 	fieldType BuftiType
 }
 
-func NewField(index byte, label string, fieldType BuftiType) Field {
-	return Field{
+func Field(index byte, label string, fieldType BuftiType) ModelField {
+	return ModelField{
 		index:     index,
 		label:     label,
 		fieldType: fieldType,
@@ -27,14 +29,14 @@ func NewField(index byte, label string, fieldType BuftiType) Field {
 
 type Model struct {
 	name   string
-	schema map[byte]Field
+	schema map[byte]ModelField
 	labels map[string]byte
 }
 
-func NewModel(name string, fields ...Field) *Model {
+func NewModel(name string, fields ...ModelField) *Model {
 	m := &Model{
 		name:   name,
-		schema: make(map[byte]Field),
+		schema: make(map[byte]ModelField),
 		labels: make(map[string]byte),
 	}
 
@@ -47,25 +49,25 @@ func NewModel(name string, fields ...Field) *Model {
 
 func M() {
 	userModel := NewModel("user",
-		NewField(0, "id", Int64Type),
-		NewField(1, "name", StringType),
-		NewField(2, "postIDs", NewList(Int64Type)),
-		NewField(3, "avgViews", Float64Type),
+		Field(0, "id", Int64),
+		Field(1, "name", String),
+		Field(2, "postIDs", List(Int64)),
+		Field(3, "avgViews", Float64),
 	)
 
 	commentModel := NewModel("comment",
-		NewField(0, "id", Int64Type),
-		NewField(1, "authorID", Int64Type),
-		NewField(1, "postID", Int64Type),
+		Field(0, "id", Int64),
+		Field(1, "authorID", Int64),
+		Field(1, "postID", Int64),
 	)
 
 	postModel := NewModel("post",
-		NewField(0, "id", Int64Type),
-		NewField(1, "title", StringType),
-		NewField(2, "tags", NewList(StringType)),
-		NewField(3, "views", Int32Type),
-		NewField(4, "author", NewReference(userModel)),
-		NewField(5, "comments", NewList(NewReference(commentModel))),
+		Field(0, "id", Int64),
+		Field(1, "title", String),
+		Field(2, "tags", List(String)),
+		Field(3, "views", Int32),
+		Field(4, "author", Reference(userModel)),
+		Field(5, "comments", List(Reference(commentModel))),
 	)
 
 	_ = postModel

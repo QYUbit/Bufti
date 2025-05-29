@@ -2,6 +2,7 @@ package bufti2
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"reflect"
 )
@@ -11,6 +12,10 @@ func (m *Model) Encode(data any) ([]byte, error) {
 	defer bufferPool.Put(buf)
 
 	buf.Reset()
+
+	if err := binary.Write(buf, binary.LittleEndian, ProtocolVersion); err != nil {
+		return nil, err
+	}
 
 	if err := m.encode(buf, data); err != nil {
 		return nil, err
@@ -23,7 +28,7 @@ func (m *Model) encode(buf *bytes.Buffer, data any) error {
 	v := reflect.ValueOf(data)
 	t := reflect.TypeOf(data)
 
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 		t = t.Elem()
 	}

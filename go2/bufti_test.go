@@ -1,13 +1,15 @@
 package bufti2
 
-import "testing"
+import (
+	"testing"
+)
 
 func Test1(t *testing.T) {
 	userModel := NewModel("user",
-		NewField(0, "id", Int64Type),
-		NewField(1, "name", StringType),
-		NewField(2, "postIDs", NewList(Int64Type)),
-		NewField(3, "avgViews", Float64Type),
+		Field(0, "id", Int64),
+		Field(1, "name", String),
+		Field(2, "postIDs", List(Int64)),
+		Field(3, "avgViews", Float64),
 	)
 
 	type User struct {
@@ -29,5 +31,16 @@ func Test1(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Log(b, len(b))
+	t.Log(b)
+
+	var user2 User
+
+	decoder := NewDecoder(b)
+	defer decoder.Close()
+
+	if err := decoder.Decode(&user2); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(user2)
 }
