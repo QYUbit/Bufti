@@ -63,7 +63,6 @@ func (m *Model) encodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value)
 		}
 
 		index, exists := m.labels[fieldName]
-		fmt.Printf("field %s name %s exists %t\n", field.Name, fieldName, exists)
 		if !exists {
 			continue
 		}
@@ -85,10 +84,6 @@ func (m *Model) encodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value)
 }
 
 func (m *Model) encodeMap(buf *bytes.Buffer, _ reflect.Type, v reflect.Value) error {
-	if v.Kind() != reflect.Map {
-		return fmt.Errorf("")
-	}
-
 	for _, k := range v.MapKeys() {
 		key := k.Interface()
 		value := v.MapIndex(k).Interface()
@@ -105,7 +100,7 @@ func (m *Model) encodeMap(buf *bytes.Buffer, _ reflect.Type, v reflect.Value) er
 
 		schemaField, exists := m.schema[index]
 		if !exists {
-			return fmt.Errorf("%w: index not found (%d)", fmt.Errorf(""), index)
+			return fmt.Errorf("bufti: index %d not found on model %s", index, m.name)
 		}
 
 		if err := buf.WriteByte(index); err != nil {

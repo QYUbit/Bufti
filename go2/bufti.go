@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-const ProtocolVersion uint32 = 2
+const ProtocolVersion uint32 = 1
 
 var bufferPool = sync.Pool{
 	New: func() any {
