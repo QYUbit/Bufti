@@ -14,7 +14,7 @@ func (m *Model) Encode(data any) ([]byte, error) {
 	buf.Reset()
 
 	if err := binary.Write(buf, binary.LittleEndian, ProtocolVersion); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to write protocol version")
 	}
 
 	if err := m.encode(buf, data); err != nil {
@@ -43,7 +43,7 @@ func (m *Model) encode(buf *bytes.Buffer, data any) error {
 			return err
 		}
 	default:
-		// Error
+		return fmt.Errorf("%w: invalid input type %T", ErrInput, data)
 	}
 	return nil
 }
@@ -69,15 +69,15 @@ func (m *Model) encodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value)
 
 		schemaField, exists := m.schema[index]
 		if !exists {
-			return fmt.Errorf("%w: index not found (%d)", fmt.Errorf(""), index)
+			return fmt.Errorf("%w: index %d not found on model %s", ErrModel, index, m.name)
 		}
 
 		if err := buf.WriteByte(index); err != nil {
 			return err
 		}
 
-		if err := schemaField.fieldType.encode(buf, value.Interface()); err != nil {
-			return err
+		if err := schemaField.fieldType.Encode(buf, value.Interface()); err != nil {
+			return fmt.Errorf("%w: %w", ErrInput, err)
 		}
 	}
 	return nil
@@ -90,7 +90,7 @@ func (m *Model) encodeMap(buf *bytes.Buffer, _ reflect.Type, v reflect.Value) er
 
 		strKey, ok := key.(string)
 		if !ok {
-			return fmt.Errorf("")
+			return fmt.Errorf("%w: map key has to be a string, intead: %T", ErrInput, key)
 		}
 
 		index, exists := m.labels[strKey]
@@ -100,15 +100,15 @@ func (m *Model) encodeMap(buf *bytes.Buffer, _ reflect.Type, v reflect.Value) er
 
 		schemaField, exists := m.schema[index]
 		if !exists {
-			return fmt.Errorf("bufti: index %d not found on model %s", index, m.name)
+			return fmt.Errorf("%w: index %d not found on model %s", ErrModel, index, m.name)
 		}
 
 		if err := buf.WriteByte(index); err != nil {
 			return err
 		}
 
-		if err := schemaField.fieldType.encode(buf, value); err != nil {
-			return err
+		if err := schemaField.fieldType.Encode(buf, value); err != nil {
+			return fmt.Errorf("%w: %w", ErrInput, err)
 		}
 	}
 	return nil

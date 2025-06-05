@@ -4,359 +4,61 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"math"
+	"io"
 	"reflect"
 )
 
+// TODo Indirect values before decoding
+
 type BuftiType interface {
-	getName() string
-	encode(*bytes.Buffer, any) error
-	decode(*bytes.Buffer, reflect.Value) error
+	Encode(*bytes.Buffer, any) error
+	Decode(*bytes.Buffer, reflect.Value) error
 }
 
 type SimpleType int
 
 const (
-	Int8 SimpleType = iota
+	Bool SimpleType = iota
+	Uint8
+	Uint16
+	Uint32
+	Uint64
+	Int8
 	Int16
 	Int32
 	Int64
 	Float32
 	Float64
-	Bool
+	Bytes
 	String
 )
 
-func (t SimpleType) getName() string {
-	return "simple"
-}
-
 func (t SimpleType) String() string {
-	typeNames := []string{"int8", "int16", "int32", "int64", "float64", "float32", "boolean", "string"}
+	typeNames := [8]string{"int8", "int16", "int32", "int64", "float64", "float32", "boolean", "string"}
 	return fmt.Sprintf("bufti %s", typeNames[t])
 }
 
-func (t SimpleType) encode(buf *bytes.Buffer, value any) error {
+func (t SimpleType) reflectType() reflect.Type {
 	switch t {
 	case Int8:
-		var v int8
-		switch val := value.(type) {
-		case int8:
-			v = val
-		case int:
-			if val < math.MinInt8 || val > math.MaxInt8 {
-				return fmt.Errorf("int value %d out of range for int8", val)
-			}
-			v = int8(val)
-		case int16:
-			if val < math.MinInt8 || val > math.MaxInt8 {
-				return fmt.Errorf("int16 value %d out of range for int8", val)
-			}
-			v = int8(val)
-		case int32:
-			if val < math.MinInt8 || val > math.MaxInt8 {
-				return fmt.Errorf("int32 value %d out of range for int8", val)
-			}
-			v = int8(val)
-		case int64:
-			if val < math.MinInt8 || val > math.MaxInt8 {
-				return fmt.Errorf("int64 value %d out of range for int8", val)
-			}
-			v = int8(val)
-		default:
-			return fmt.Errorf("cannot convert %T to int8", value)
-		}
-		return binary.Write(buf, binary.LittleEndian, v)
-
+		return reflect.TypeOf(int8(0))
 	case Int16:
-		var v int16
-		switch val := value.(type) {
-		case int16:
-			v = val
-		case int8:
-			v = int16(val)
-		case int:
-			if val < math.MinInt16 || val > math.MaxInt16 {
-				return fmt.Errorf("int value %d out of range for int16", val)
-			}
-			v = int16(val)
-		case int32:
-			if val < math.MinInt16 || val > math.MaxInt16 {
-				return fmt.Errorf("int32 value %d out of range for int16", val)
-			}
-			v = int16(val)
-		case int64:
-			if val < math.MinInt16 || val > math.MaxInt16 {
-				return fmt.Errorf("int64 value %d out of range for int16", val)
-			}
-			v = int16(val)
-		default:
-			return fmt.Errorf("cannot convert %T to int16", value)
-		}
-		return binary.Write(buf, binary.LittleEndian, v)
-
+		return reflect.TypeOf(int16(0))
 	case Int32:
-		var v int32
-		switch val := value.(type) {
-		case int32:
-			v = val
-		case int8:
-			v = int32(val)
-		case int16:
-			v = int32(val)
-		case int:
-			if val < math.MinInt32 || val > math.MaxInt32 {
-				return fmt.Errorf("int value %d out of range for int32", val)
-			}
-			v = int32(val)
-		case int64:
-			if val < math.MinInt32 || val > math.MaxInt32 {
-				return fmt.Errorf("int64 value %d out of range for int32", val)
-			}
-			v = int32(val)
-		default:
-			return fmt.Errorf("cannot convert %T to int32", value)
-		}
-		return binary.Write(buf, binary.LittleEndian, v)
-
+		return reflect.TypeOf(int32(0))
 	case Int64:
-		var v int64
-		switch val := value.(type) {
-		case int64:
-			v = val
-		case int8:
-			v = int64(val)
-		case int16:
-			v = int64(val)
-		case int32:
-			v = int64(val)
-		case int:
-			v = int64(val)
-		default:
-			return fmt.Errorf("cannot convert %T to int64", value)
-		}
-		return binary.Write(buf, binary.LittleEndian, v)
-
+		return reflect.TypeOf(int64(0))
 	case Float32:
-		var v float32
-		switch val := value.(type) {
-		case float32:
-			v = val
-		case float64:
-			if val < -math.MaxFloat32 || val > math.MaxFloat32 {
-				return fmt.Errorf("float64 value %f out of range for float32", val)
-			}
-			v = float32(val)
-		default:
-			return fmt.Errorf("cannot convert %T to float32", value)
-		}
-		return binary.Write(buf, binary.LittleEndian, v)
-
+		return reflect.TypeOf(float32(0))
 	case Float64:
-		var v float64
-		switch val := value.(type) {
-		case float64:
-			v = val
-		case float32:
-			v = float64(val)
-		default:
-			return fmt.Errorf("cannot convert %T to float64", value)
-		}
-		return binary.Write(buf, binary.LittleEndian, v)
-
+		return reflect.TypeOf(float64(0))
 	case Bool:
-		v, ok := value.(bool)
-		if !ok {
-			return fmt.Errorf("expected bool, got %T", value)
-		}
-		var b byte
-		if v {
-			b = 1
-		}
-		return buf.WriteByte(b)
-
+		return reflect.TypeOf(bool(false))
 	case String:
-		v, ok := value.(string)
-		if !ok {
-			return fmt.Errorf("expected string, got %T", value)
-		}
-		if err := binary.Write(buf, binary.LittleEndian, uint32(len(v))); err != nil {
-			return err
-		}
-		_, err := buf.WriteString(v)
-		return err
-
+		return reflect.TypeOf(string(""))
 	default:
-		return fmt.Errorf("unknown SimpleType: %d", t)
+		panic(fmt.Sprintf("%v is no simple type", t))
 	}
-}
-
-func (t SimpleType) decode(buf *bytes.Buffer, val reflect.Value) error {
-	switch t {
-	case Int8:
-		if !val.CanSet() {
-			return fmt.Errorf("cannot set int8 value")
-		}
-		var v int8
-		if err := binary.Read(buf, binary.LittleEndian, &v); err != nil {
-			return fmt.Errorf("failed to decode int8: %w", err)
-		}
-
-		// Handle different target types
-		switch val.Kind() {
-		case reflect.Int8:
-			val.SetInt(int64(v))
-		case reflect.Interface:
-			val.Set(reflect.ValueOf(v))
-		default:
-			return fmt.Errorf("cannot set int8 value to %s", val.Kind())
-		}
-
-	case Int16:
-		if !val.CanSet() {
-			return fmt.Errorf("cannot set int16 value")
-		}
-		var v int16
-		if err := binary.Read(buf, binary.LittleEndian, &v); err != nil {
-			return fmt.Errorf("failed to decode int16: %w", err)
-		}
-
-		switch val.Kind() {
-		case reflect.Int16:
-			val.SetInt(int64(v))
-		case reflect.Interface:
-			val.Set(reflect.ValueOf(v))
-		default:
-			return fmt.Errorf("cannot set int16 value to %s", val.Kind())
-		}
-
-	case Int32:
-		if !val.CanSet() {
-			return fmt.Errorf("cannot set int32 value")
-		}
-		var v int32
-		if err := binary.Read(buf, binary.LittleEndian, &v); err != nil {
-			return fmt.Errorf("failed to decode int32: %w", err)
-		}
-
-		switch val.Kind() {
-		case reflect.Int32:
-			val.SetInt(int64(v))
-		case reflect.Interface:
-			val.Set(reflect.ValueOf(v))
-		default:
-			return fmt.Errorf("cannot set int32 value to %s", val.Kind())
-		}
-
-	case Int64:
-		if !val.CanSet() {
-			return fmt.Errorf("cannot set int64 value")
-		}
-		var v int64
-		if err := binary.Read(buf, binary.LittleEndian, &v); err != nil {
-			return fmt.Errorf("failed to decode int64: %w", err)
-		}
-
-		switch val.Kind() {
-		case reflect.Int64:
-			val.SetInt(v)
-		case reflect.Interface:
-			val.Set(reflect.ValueOf(v))
-		default:
-			return fmt.Errorf("cannot set int64 value to %s", val.Kind())
-		}
-
-	case Float32:
-		if !val.CanSet() {
-			return fmt.Errorf("cannot set float32 value")
-		}
-		var v float32
-		if err := binary.Read(buf, binary.LittleEndian, &v); err != nil {
-			return fmt.Errorf("failed to decode float32: %w", err)
-		}
-
-		switch val.Kind() {
-		case reflect.Float32:
-			val.SetFloat(float64(v))
-		case reflect.Interface:
-			val.Set(reflect.ValueOf(v))
-		default:
-			return fmt.Errorf("cannot set float32 value to %s", val.Kind())
-		}
-
-	case Float64:
-		if !val.CanSet() {
-			return fmt.Errorf("cannot set float64 value")
-		}
-		var v float64
-		if err := binary.Read(buf, binary.LittleEndian, &v); err != nil {
-			return fmt.Errorf("failed to decode float64: %w", err)
-		}
-
-		switch val.Kind() {
-		case reflect.Float64:
-			val.SetFloat(v)
-		case reflect.Interface:
-			val.Set(reflect.ValueOf(v))
-		default:
-			return fmt.Errorf("cannot set float64 value to %s", val.Kind())
-		}
-
-	case Bool:
-		if !val.CanSet() {
-			return fmt.Errorf("cannot set bool value")
-		}
-		b, err := buf.ReadByte()
-		if err != nil {
-			return fmt.Errorf("failed to decode bool: %w", err)
-		}
-
-		boolVal := b != 0
-		switch val.Kind() {
-		case reflect.Bool:
-			val.SetBool(boolVal)
-		case reflect.Interface:
-			val.Set(reflect.ValueOf(boolVal))
-		default:
-			return fmt.Errorf("cannot set bool value to %s", val.Kind())
-		}
-
-	case String:
-		if !val.CanSet() {
-			return fmt.Errorf("cannot set string value")
-		}
-		var length uint32
-		if err := binary.Read(buf, binary.LittleEndian, &length); err != nil {
-			return fmt.Errorf("failed to decode string length: %w", err)
-		}
-		if length > uint32(buf.Len()) {
-			return fmt.Errorf("string length %d exceeds buffer size %d", length, buf.Len())
-		}
-
-		data := make([]byte, length)
-		n, err := buf.Read(data)
-		if err != nil {
-			return fmt.Errorf("failed to decode string data: %w", err)
-		}
-		if n != int(length) {
-			return fmt.Errorf("expected to read %d bytes, got %d", length, n)
-		}
-
-		strVal := string(data)
-		switch val.Kind() {
-		case reflect.String:
-			val.SetString(strVal)
-		case reflect.Interface:
-			val.Set(reflect.ValueOf(strVal))
-		default:
-			return fmt.Errorf("cannot set string value to %s", val.Kind())
-		}
-
-	default:
-		return fmt.Errorf("unknown SimpleType: %d", t)
-	}
-
-	return nil
 }
 
 type ListType struct {
@@ -367,18 +69,14 @@ func List(elementType BuftiType) ListType {
 	return ListType{elementType: elementType}
 }
 
-func (t ListType) getName() string {
-	return "list"
-}
-
 func (t ListType) String() string {
 	return fmt.Sprintf("bufti list of %ss", t.elementType)
 }
 
-func (t ListType) encode(buf *bytes.Buffer, value any) error {
+func (t ListType) Encode(buf *bytes.Buffer, value any) error {
 	val := reflect.ValueOf(value)
-	if val.Kind() != reflect.Slice && val.Kind() != reflect.Array {
-		return fmt.Errorf("%w: can not apply value of type %T to %s", fmt.Errorf(""), value, "")
+	if val.Kind() != reflect.Slice {
+		return fmt.Errorf("can not encode value of type %T as %s", value, t)
 	}
 	if err := binary.Write(buf, binary.LittleEndian, uint32(val.Len())); err != nil {
 		return err
@@ -388,19 +86,20 @@ func (t ListType) encode(buf *bytes.Buffer, value any) error {
 		if !val.CanInterface() {
 			continue
 		}
-		if err := t.elementType.encode(buf, val.Index(i).Interface()); err != nil {
+		if err := t.elementType.Encode(buf, val.Index(i).Interface()); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (t ListType) decode(buf *bytes.Buffer, v reflect.Value) error {
+func (t ListType) Decode(buf *bytes.Buffer, v reflect.Value) error {
 	var length uint32
 	if err := binary.Read(buf, binary.LittleEndian, &length); err != nil {
-		return err
+		return io.ErrUnexpectedEOF
 	}
 
+	// TODO Make seperate interface functions for each decode to reduce reflect calls
 	var slice reflect.Value
 	if v.Kind() == reflect.Slice {
 		slice = reflect.MakeSlice(v.Type(), int(length), int(length))
@@ -410,8 +109,8 @@ func (t ListType) decode(buf *bytes.Buffer, v reflect.Value) error {
 
 	for i := range int(length) {
 		elem := slice.Index(i)
-		if err := t.elementType.decode(buf, elem); err != nil {
-			return fmt.Errorf("error decoding slice element %d: %w", i, err)
+		if err := t.elementType.Decode(buf, elem); err != nil {
+			return err
 		}
 	}
 
@@ -428,55 +127,60 @@ func Map(keyType SimpleType, valueType BuftiType) MapType {
 	return MapType{keyType: keyType, valueType: valueType}
 }
 
-func (t MapType) getName() string {
-	return "map"
-}
-
 func (t MapType) String() string {
-	return fmt.Sprintf("bufti map from %s to %s", t.keyType, t.valueType)
+	return fmt.Sprintf("bufti map (%s -> %s)", t.keyType, t.valueType)
 }
 
-func (t MapType) encode(buf *bytes.Buffer, value any) error {
+func (t MapType) Encode(buf *bytes.Buffer, value any) error {
 	val := reflect.ValueOf(value)
 	if val.Kind() != reflect.Map {
-		return fmt.Errorf("%w: can not apply value of type %T to %s", fmt.Errorf(""), value, "")
+		return fmt.Errorf("can not encode value of type %T as %s", value, t)
 	}
 	if err := binary.Write(buf, binary.LittleEndian, uint32(val.Len())); err != nil {
 		return err
 	}
 
 	for _, key := range val.MapKeys() {
-		if !key.CanInterface() || val.MapIndex(key).CanInterface() {
+		if !key.CanInterface() || !val.MapIndex(key).CanInterface() {
 			continue
 		}
-		if err := t.keyType.encode(buf, key.Interface()); err != nil {
+		if err := t.keyType.Encode(buf, key.Interface()); err != nil {
 			return err
 		}
-		if err := t.valueType.encode(buf, val.MapIndex(key).Interface()); err != nil {
+		if err := t.valueType.Encode(buf, val.MapIndex(key).Interface()); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (t MapType) decode(buf *bytes.Buffer, v reflect.Value) error {
+func (t MapType) Decode(buf *bytes.Buffer, v reflect.Value) error {
 	var length uint32
 	if err := binary.Read(buf, binary.LittleEndian, &length); err != nil {
 		return err
 	}
 
-	newMap := reflect.MakeMap(v.Type())
+	var newMap reflect.Value
+	if v.Kind() == reflect.Interface {
+		keyType := t.keyType.reflectType()
+		mapType := reflect.MapOf(keyType, reflect.TypeOf((*any)(nil)).Elem())
+		newMap = reflect.MakeMap(mapType)
+	} else {
+		newMap = reflect.MakeMap(v.Type())
+	}
 
 	for range length {
-		var key any
-		if err := t.keyType.decode(buf, reflect.ValueOf(&key).Elem()); err != nil {
+		keyValue := reflect.New(newMap.Type().Key()).Elem()
+		if err := t.keyType.Decode(buf, keyValue); err != nil {
 			return err
 		}
 
-		value := v.MapIndex(reflect.ValueOf(key))
-		if err := t.valueType.decode(buf, value); err != nil {
-			return fmt.Errorf("error decoding map value %d: %w", key, err)
+		valueValue := reflect.New(newMap.Type().Elem()).Elem()
+		if err := t.valueType.Decode(buf, valueValue); err != nil {
+			return err
 		}
+
+		newMap.SetMapIndex(keyValue, valueValue)
 	}
 
 	v.Set(newMap)
@@ -491,18 +195,14 @@ func Reference(model *Model) ReferenceType {
 	return ReferenceType{model: model}
 }
 
-func (t ReferenceType) getName() string {
-	return "reference"
-}
-
 func (t ReferenceType) String() string {
 	return fmt.Sprintf("bufti model %s", t.model.name)
 }
 
-func (t ReferenceType) encode(buf *bytes.Buffer, data any) error {
+func (t ReferenceType) Encode(buf *bytes.Buffer, data any) error {
 	return t.model.encode(buf, data)
 }
 
-func (t ReferenceType) decode(buf *bytes.Buffer, val reflect.Value) error {
+func (t ReferenceType) Decode(buf *bytes.Buffer, val reflect.Value) error {
 	return nil
 }

@@ -3,7 +3,6 @@ package bufti2
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"reflect"
 )
@@ -13,7 +12,7 @@ func (m *Model) Decode(data []byte, dest any) error {
 	t := reflect.TypeOf(dest)
 
 	if t.Kind() != reflect.Pointer || v.IsNil() {
-		return errors.New("dest has to be a pointer")
+		return fmt.Errorf("%w: dest has to be a pointer, instead: %T", ErrInput, dest)
 	}
 	v = v.Elem()
 	t = t.Elem()
@@ -28,10 +27,10 @@ func (m *Model) Decode(data []byte, dest any) error {
 
 	var version uint32
 	if err := binary.Read(buf, binary.LittleEndian, &version); err != nil {
-		return err
+		return fmt.Errorf("failed to read protocol version")
 	}
 	if version != ProtocolVersion {
-		return fmt.Errorf("bufti: incompatible bufti version: this package uses version %d input uses version %d", ProtocolVersion, version)
+		return fmt.Errorf("incompatible bufti version: this package uses version %d, buffer uses version %d", ProtocolVersion, version)
 	}
 
 	return m.decode(buf, t, v, len(data)/2)
@@ -42,12 +41,9 @@ func (m *Model) decode(buf *bytes.Buffer, t reflect.Type, v reflect.Value, maxIt
 	case reflect.Struct:
 		return m.decodeStruct(buf, t, v, maxIterations)
 	case reflect.Map:
-		if t.Key().Kind() != reflect.String || t.Elem().Kind() != reflect.Interface {
-			return fmt.Errorf("bufti: destination has to be a string to any map, instead: %s", t.String())
-		}
 		return m.decodeMap(buf, t, v, maxIterations)
 	default:
-		return fmt.Errorf("bufti: invalid destination type %s", t.String())
+		return fmt.Errorf("%w: invalid destination type %s", ErrInput, t.String())
 	}
 }
 
@@ -74,18 +70,20 @@ func (m *Model) decodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value,
 
 		schemaField, exists := m.schema[index]
 		if !exists {
-			return fmt.Errorf("bufti: index %d does not exist on this model", index)
+			return fmt.Errorf("%w: index %d does not exist on model %s", ErrModel, index, m.name)
 		}
 
-		if err = schemaField.fieldType.decode(buf, fieldMap[schemaField.label]); err != nil {
+		if err = schemaField.fieldType.Decode(buf, fieldMap[schemaField.label]); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (m *Model) decodeMap(buf *bytes.Buffer, _ reflect.Type, v reflect.Value, maxIterations int) error {
-	//decodeMap := reflect.MakeMap(t)
+func (m *Model) decodeMap(buf *bytes.Buffer, t reflect.Type, v reflect.Value, maxIterations int) error {
+	if t.Key().Kind() != reflect.String || t.Elem().Kind() != reflect.Interface {
+		return fmt.Errorf("%w: destination has to be a map[string]any, instead: %T", ErrInput, t.String())
+	}
 
 	for range maxIterations {
 		index, err := buf.ReadByte()
@@ -95,20 +93,14 @@ func (m *Model) decodeMap(buf *bytes.Buffer, _ reflect.Type, v reflect.Value, ma
 
 		schemaField, exists := m.schema[index]
 		if !exists {
-			return fmt.Errorf("bufti: index %d does not exist on this model", index)
+			return fmt.Errorf("%w: index %d does not exist on model %s", ErrModel, index, m.name)
 		}
 
-		//if !slices.Contains(v.MapKeys(), reflect.ValueOf(schemaField.label)) {
-		//	fmt.Println(v.MapKeys())
-		//	return fmt.Errorf("bufti could not find label %s in map", schemaField.label)
-		//}
 		var mapValue any
-		if err = schemaField.fieldType.decode(buf, reflect.ValueOf(&mapValue).Elem()); err != nil {
+		if err = schemaField.fieldType.Decode(buf, reflect.ValueOf(&mapValue).Elem()); err != nil {
 			return err
 		}
 		v.SetMapIndex(reflect.ValueOf(schemaField.label), reflect.ValueOf(mapValue))
 	}
-
-	//v.Set(decodeMap)
 	return nil
 }

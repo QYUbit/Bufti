@@ -2,10 +2,17 @@ package bufti2
 
 import (
 	"bytes"
+	"errors"
 	"sync"
 )
 
 const ProtocolVersion uint32 = 1
+
+var (
+	ErrInput  = errors.New("unexpected input")
+	ErrBuffer = errors.New("invalid buffer")
+	ErrModel  = errors.New("invalid model")
+)
 
 var bufferPool = sync.Pool{
 	New: func() any {
@@ -14,9 +21,10 @@ var bufferPool = sync.Pool{
 }
 
 type ModelField struct {
-	index     byte
-	label     string
-	fieldType BuftiType
+	index      byte
+	label      string
+	fieldType  BuftiType
+	isRequired bool
 }
 
 func Field(index byte, label string, fieldType BuftiType) ModelField {
@@ -24,6 +32,15 @@ func Field(index byte, label string, fieldType BuftiType) ModelField {
 		index:     index,
 		label:     label,
 		fieldType: fieldType,
+	}
+}
+
+func RequiredField(index byte, label string, fieldType BuftiType) ModelField {
+	return ModelField{
+		index:      index,
+		label:      label,
+		fieldType:  fieldType,
+		isRequired: true,
 	}
 }
 
@@ -45,30 +62,4 @@ func NewModel(name string, fields ...ModelField) *Model {
 		m.schema[f.index] = f
 	}
 	return m
-}
-
-func M() {
-	userModel := NewModel("user",
-		Field(0, "id", Int64),
-		Field(1, "name", String),
-		Field(2, "postIDs", List(Int64)),
-		Field(3, "avgViews", Float64),
-	)
-
-	commentModel := NewModel("comment",
-		Field(0, "id", Int64),
-		Field(1, "authorID", Int64),
-		Field(1, "postID", Int64),
-	)
-
-	postModel := NewModel("post",
-		Field(0, "id", Int64),
-		Field(1, "title", String),
-		Field(2, "tags", List(String)),
-		Field(3, "views", Int32),
-		Field(4, "author", Reference(userModel)),
-		Field(5, "comments", List(Reference(commentModel))),
-	)
-
-	_ = postModel
 }
