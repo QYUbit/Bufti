@@ -14,17 +14,6 @@ FLOAT64_TYPE = "float64"
 BOOL_TYPE = "bool"
 STRING_TYPE = "string"
 
-type_format_dict: dict[str, str] = {
-    INT8_TYPE: "b",
-    INT16_TYPE: "h",
-    INT32_TYPE: "l",
-    INT64_TYPE: "q",
-    FLOAT32_TYPE: "f",
-    FLOAT64_TYPE: "d",
-    BOOL_TYPE: "?",
-    STRING_TYPE: "Hs"
-}
-
 def create_list_type(element_type: str) -> str:
     return f"list:{element_type}"
 
@@ -109,12 +98,12 @@ class Model:
         if field_type == BOOL_TYPE:
             parser.write_bool(value)
         if field_type == STRING_TYPE:
-            parser.write_uint16(len(value))
+            parser.write_uint32(len(value))
             parser.write_string(value)
 
         if field_type.startswith("list:"):
             element_type = field_type.removeprefix("list:")
-            parser.write_uint16(len(value))
+            parser.write_uint32(len(value))
             for element in value:
                 self._encode_value(parser, element, element_type)
 
@@ -122,7 +111,7 @@ class Model:
             parts = field_type.split(":")
             if len(parts) < 3:
                 raise ModelError(f"invalid map type in model {self.name} ({field_type})")
-            parser.write_uint16(len(value))
+            parser.write_uint32(len(value))
 
             for key, val in value.items():
                 self._encode_value(parser, key, parts[1])
@@ -175,12 +164,12 @@ class Model:
         if field_type == BOOL_TYPE:
             return parser.read_bool()
         if field_type == STRING_TYPE:
-            size = parser.read_uint16()
+            size = parser.read_uint32()
             return parser.read_string(size)
         
         if field_type.startswith("list:"):
             element_type = field_type.removeprefix("list:")
-            size = parser.read_uint16()
+            size = parser.read_uint32()
 
             parse_list: list[Any] = []
             for _ in range(size):
@@ -192,7 +181,7 @@ class Model:
             parts = field_type.split(":")
             if len(parts) < 3:
                 raise ModelError(f"invalid map type in model {self.name} ({field_type})")
-            size = parser.read_uint16()
+            size = parser.read_uint32()
 
             parse_dict: dict[Any, Any] = {}
             for _ in range(size):

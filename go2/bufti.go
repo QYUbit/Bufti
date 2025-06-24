@@ -9,9 +9,17 @@ import (
 const ProtocolVersion uint32 = 1
 
 var (
-	ErrInput  = errors.New("unexpected input")
+	// Indicates an incompatible version of a buffer.
+	ErrVersion = errors.New("incompatible buffer version")
+
+	// Indicates an invalid encode input value or decode testination value.
+	ErrInput = errors.New("unexpected input")
+
+	// Indicates an invalid buffer.
 	ErrBuffer = errors.New("invalid buffer")
-	ErrModel  = errors.New("invalid model")
+
+	// Indicates an error inside of a model.
+	ErrModel = errors.New("invalid model")
 )
 
 var bufferPool = sync.Pool{
@@ -50,6 +58,7 @@ type Model struct {
 	labels map[string]byte
 }
 
+// TODO Better model initializer function
 func NewModel(name string, fields ...ModelField) *Model {
 	m := &Model{
 		name:   name,

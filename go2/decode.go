@@ -14,8 +14,8 @@ func (m *Model) Decode(data []byte, dest any) error {
 	if t.Kind() != reflect.Pointer || v.IsNil() {
 		return fmt.Errorf("%w: dest has to be a pointer, instead: %T", ErrInput, dest)
 	}
-	v = v.Elem()
-	t = t.Elem()
+	v = indirectValue(v)
+	t = indirectType(t)
 
 	buf := bufferPool.Get().(*bytes.Buffer)
 	defer bufferPool.Put(buf)
@@ -27,32 +27,41 @@ func (m *Model) Decode(data []byte, dest any) error {
 
 	var version uint32
 	if err := binary.Read(buf, binary.LittleEndian, &version); err != nil {
-		return fmt.Errorf("failed to read protocol version")
+		return fmt.Errorf("%w: failed to read protocol version", ErrBuffer)
 	}
 	if version != ProtocolVersion {
-		return fmt.Errorf("incompatible bufti version: this package uses version %d, buffer uses version %d", ProtocolVersion, version)
+		return fmt.Errorf("%w: incompatible bufti version: this package uses version %d, buffer uses version %d", ErrVersion, ProtocolVersion, version)
 	}
 
-	return m.decode(buf, t, v, len(data)/2)
+	return m.decode(buf, t, v)
 }
 
-func (m *Model) decode(buf *bytes.Buffer, t reflect.Type, v reflect.Value, maxIterations int) error {
-	switch v.Kind() {
+func (m *Model) decode(buf *bytes.Buffer, t reflect.Type, v reflect.Value) error {
+	var fieldCount uint32
+	if err := binary.Read(buf, binary.LittleEndian, &fieldCount); err != nil {
+		return err
+	}
+
+	switch t.Kind() {
 	case reflect.Struct:
-		return m.decodeStruct(buf, t, v, maxIterations)
+		return m.decodeStruct(buf, t, v, int(fieldCount))
 	case reflect.Map:
-		return m.decodeMap(buf, t, v, maxIterations)
+		return m.decodeMap(buf, t, v, int(fieldCount))
 	default:
-		return fmt.Errorf("%w: invalid destination type %s", ErrInput, t.String())
+		return fmt.Errorf("%w: invalid destination type %s", ErrInput, t.Kind())
 	}
 }
 
-func (m *Model) decodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value, maxIterations int) error {
+func (m *Model) decodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value, fieldCount int) error {
 	fieldMap := make(map[string]reflect.Value)
 
 	for i := range t.NumField() {
 		field := t.Field(i)
 		value := v.Field(i)
+
+		if !value.CanInterface() {
+			continue
+		}
 
 		fieldName := field.Name
 		if tag := field.Tag.Get("bufti"); tag != "" {
@@ -62,10 +71,10 @@ func (m *Model) decodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value,
 		fieldMap[fieldName] = value
 	}
 
-	for range maxIterations {
+	for range fieldCount {
 		index, err := buf.ReadByte()
 		if err != nil {
-			break
+			return err
 		}
 
 		schemaField, exists := m.schema[index]
@@ -80,12 +89,12 @@ func (m *Model) decodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value,
 	return nil
 }
 
-func (m *Model) decodeMap(buf *bytes.Buffer, t reflect.Type, v reflect.Value, maxIterations int) error {
+func (m *Model) decodeMap(buf *bytes.Buffer, t reflect.Type, v reflect.Value, fieldCount int) error {
 	if t.Key().Kind() != reflect.String || t.Elem().Kind() != reflect.Interface {
 		return fmt.Errorf("%w: destination has to be a map[string]any, instead: %T", ErrInput, t.String())
 	}
 
-	for range maxIterations {
+	for range fieldCount {
 		index, err := buf.ReadByte()
 		if err != nil {
 			break

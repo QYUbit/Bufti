@@ -21,7 +21,7 @@ class Parser():
         buffer = self.buf[self.off:self.off + length]
         self.off += length
         return buffer
-    
+        
     def read_string(self, size: int) -> str:
         return self.read_bytes(size).decode()
 

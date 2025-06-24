@@ -123,3 +123,41 @@ func TestMapMap(t *testing.T) {
 
 	t.Log(dest)
 }
+
+func TestReferenceType(t *testing.T) { // !
+	type OtherStruct struct {
+		Text string `bufti:"map"`
+	}
+
+	type ReferenceStruct struct {
+		Reference *OtherStruct `bufti:"reference"`
+	}
+
+	otherModel := NewModel("otherModel",
+		Field(0, "text", String),
+	)
+
+	referenceModel := NewModel("referenceModel",
+		Field(0, "reference", Reference(otherModel)),
+	)
+
+	testStruct1 := &ReferenceStruct{
+		Reference: &OtherStruct{
+			Text: "testestest",
+		},
+	}
+
+	b, err := referenceModel.Encode(testStruct1)
+	if err != nil {
+		t.Fatal(b)
+	}
+
+	t.Log(b)
+
+	var dest ReferenceStruct
+	if err := referenceModel.Decode(b, &dest); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(dest)
+}

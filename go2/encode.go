@@ -28,10 +28,8 @@ func (m *Model) encode(buf *bytes.Buffer, data any) error {
 	v := reflect.ValueOf(data)
 	t := reflect.TypeOf(data)
 
-	if v.Kind() == reflect.Pointer {
-		v = v.Elem()
-		t = t.Elem()
-	}
+	v = indirectValue(v)
+	t = indirectType(t)
 
 	switch t.Kind() {
 	case reflect.Struct:
@@ -48,7 +46,14 @@ func (m *Model) encode(buf *bytes.Buffer, data any) error {
 	return nil
 }
 
+type valueFieldPair struct {
+	v     reflect.Value
+	field ModelField
+}
+
 func (m *Model) encodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value) error {
+	fieldMap := make(map[byte]valueFieldPair)
+
 	for i := range v.NumField() {
 		field := t.Field(i)
 		value := v.Field(i)
@@ -68,25 +73,38 @@ func (m *Model) encodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value)
 		}
 
 		schemaField, exists := m.schema[index]
-		if !exists {
+		if !exists && schemaField.isRequired {
 			return fmt.Errorf("%w: index %d not found on model %s", ErrModel, index, m.name)
 		}
+		if !exists {
+			continue
+		}
 
+		fieldMap[index] = valueFieldPair{v: value, field: schemaField}
+	}
+
+	if err := binary.Write(buf, binary.LittleEndian, uint32(len(fieldMap))); err != nil {
+		return err
+	}
+
+	for index, pair := range fieldMap {
 		if err := buf.WriteByte(index); err != nil {
 			return err
 		}
 
-		if err := schemaField.fieldType.Encode(buf, value.Interface()); err != nil {
-			return fmt.Errorf("%w: %w", ErrInput, err)
+		if err := pair.field.fieldType.Encode(buf, pair.v.Interface()); err != nil { // ! Why interface() here and don't just keep the reflect value?
+			return err
 		}
 	}
 	return nil
 }
 
 func (m *Model) encodeMap(buf *bytes.Buffer, _ reflect.Type, v reflect.Value) error {
+	fieldMap := make(map[byte]valueFieldPair)
+
 	for _, k := range v.MapKeys() {
 		key := k.Interface()
-		value := v.MapIndex(k).Interface()
+		value := v.MapIndex(k)
 
 		strKey, ok := key.(string)
 		if !ok {
@@ -99,16 +117,27 @@ func (m *Model) encodeMap(buf *bytes.Buffer, _ reflect.Type, v reflect.Value) er
 		}
 
 		schemaField, exists := m.schema[index]
-		if !exists {
+		if !exists && schemaField.isRequired {
 			return fmt.Errorf("%w: index %d not found on model %s", ErrModel, index, m.name)
 		}
+		if !exists {
+			continue
+		}
 
+		fieldMap[index] = valueFieldPair{v: value, field: schemaField}
+	}
+
+	if err := binary.Write(buf, binary.LittleEndian, uint32(v.Len())); err != nil {
+		return err
+	}
+
+	for index, pair := range fieldMap {
 		if err := buf.WriteByte(index); err != nil {
 			return err
 		}
 
-		if err := schemaField.fieldType.Encode(buf, value); err != nil {
-			return fmt.Errorf("%w: %w", ErrInput, err)
+		if err := pair.field.fieldType.Encode(buf, pair.v.Interface()); err != nil {
+			return err
 		}
 	}
 	return nil

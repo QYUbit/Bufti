@@ -4,11 +4,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"reflect"
 )
 
-// TODo Indirect values before decoding
+// TODO Indirect values before decoding
 
 type BuftiType interface {
 	Encode(*bytes.Buffer, any) error
@@ -38,26 +37,26 @@ func (t SimpleType) String() string {
 	return fmt.Sprintf("bufti %s", typeNames[t])
 }
 
-func (t SimpleType) reflectType() reflect.Type {
+func (t SimpleType) reflectType() (reflect.Type, error) {
 	switch t {
 	case Int8:
-		return reflect.TypeOf(int8(0))
+		return reflect.TypeOf(int8(0)), nil
 	case Int16:
-		return reflect.TypeOf(int16(0))
+		return reflect.TypeOf(int16(0)), nil
 	case Int32:
-		return reflect.TypeOf(int32(0))
+		return reflect.TypeOf(int32(0)), nil
 	case Int64:
-		return reflect.TypeOf(int64(0))
+		return reflect.TypeOf(int64(0)), nil
 	case Float32:
-		return reflect.TypeOf(float32(0))
+		return reflect.TypeOf(float32(0)), nil
 	case Float64:
-		return reflect.TypeOf(float64(0))
+		return reflect.TypeOf(float64(0)), nil
 	case Bool:
-		return reflect.TypeOf(bool(false))
+		return reflect.TypeOf(bool(false)), nil
 	case String:
-		return reflect.TypeOf(string(""))
+		return reflect.TypeOf(string("")), nil
 	default:
-		panic(fmt.Sprintf("%v is no simple type", t))
+		return nil, fmt.Errorf("%v is no simple type", t)
 	}
 }
 
@@ -96,7 +95,7 @@ func (t ListType) Encode(buf *bytes.Buffer, value any) error {
 func (t ListType) Decode(buf *bytes.Buffer, v reflect.Value) error {
 	var length uint32
 	if err := binary.Read(buf, binary.LittleEndian, &length); err != nil {
-		return io.ErrUnexpectedEOF
+		return fmt.Errorf("%w: failed to decode list length: %w", ErrBuffer, err)
 	}
 
 	// TODO Make seperate interface functions for each decode to reduce reflect calls
@@ -157,12 +156,16 @@ func (t MapType) Encode(buf *bytes.Buffer, value any) error {
 func (t MapType) Decode(buf *bytes.Buffer, v reflect.Value) error {
 	var length uint32
 	if err := binary.Read(buf, binary.LittleEndian, &length); err != nil {
-		return err
+		return fmt.Errorf("%w: failed to decode map length: %w", ErrBuffer, err)
 	}
 
 	var newMap reflect.Value
 	if v.Kind() == reflect.Interface {
-		keyType := t.keyType.reflectType()
+		keyType, err := t.keyType.reflectType()
+		if err != nil {
+			return err
+		}
+
 		mapType := reflect.MapOf(keyType, reflect.TypeOf((*any)(nil)).Elem())
 		newMap = reflect.MakeMap(mapType)
 	} else {
@@ -204,5 +207,19 @@ func (t ReferenceType) Encode(buf *bytes.Buffer, data any) error {
 }
 
 func (t ReferenceType) Decode(buf *bytes.Buffer, val reflect.Value) error {
-	return nil
+	return t.model.decode(buf, val.Type(), val)
+}
+
+func indirectValue(v reflect.Value) reflect.Value {
+	for v.Kind() == reflect.Pointer {
+		v = v.Elem()
+	}
+	return v
+}
+
+func indirectType(t reflect.Type) reflect.Type {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	return t
 }
