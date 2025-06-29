@@ -11,6 +11,10 @@ func (m *Model) Decode(data []byte, dest any) error {
 	v := reflect.ValueOf(dest)
 	t := reflect.TypeOf(dest)
 
+	if t.Kind() != reflect.Pointer || v.IsNil() {
+		return fmt.Errorf("%w: dest has to be a pointer, instead: %s", ErrInput, t.Kind())
+	}
+
 	buf := bufferPool.Get().(*bytes.Buffer)
 	defer bufferPool.Put(buf)
 
@@ -36,9 +40,6 @@ func (m *Model) decode(buf *bytes.Buffer, t reflect.Type, v reflect.Value) error
 		return err
 	}
 
-	if t.Kind() != reflect.Pointer || v.IsNil() {
-		return fmt.Errorf("%w: dest has to be a pointer, instead: %s", ErrInput, t.Kind())
-	}
 	v = indirectValue(v)
 	t = indirectType(t)
 

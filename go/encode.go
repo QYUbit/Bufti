@@ -9,25 +9,25 @@ import (
 
 func (m *Model) Encode(data any) ([]byte, error) {
 	buf := bufferPool.Get().(*bytes.Buffer)
-	defer bufferPool.Put(buf)
-
-	buf.Reset()
+	defer func() {
+		buf.Reset()
+		bufferPool.Put(buf)
+	}()
 
 	if err := binary.Write(buf, binary.LittleEndian, ProtocolVersion); err != nil {
 		return nil, fmt.Errorf("failed to write protocol version")
 	}
 
-	if err := m.encode(buf, data); err != nil {
+	if err := m.encode(buf, reflect.TypeOf(data), reflect.ValueOf(data)); err != nil {
 		return nil, err
 	}
 
-	return buf.Bytes(), nil
+	result := make([]byte, buf.Len())
+	copy(result, buf.Bytes())
+	return result, nil
 }
 
-func (m *Model) encode(buf *bytes.Buffer, data any) error {
-	v := reflect.ValueOf(data)
-	t := reflect.TypeOf(data)
-
+func (m *Model) encode(buf *bytes.Buffer, t reflect.Type, v reflect.Value) error {
 	v = indirectValue(v)
 	t = indirectType(t)
 
@@ -41,7 +41,7 @@ func (m *Model) encode(buf *bytes.Buffer, data any) error {
 			return err
 		}
 	default:
-		return fmt.Errorf("%w: invalid input type %T", ErrInput, data)
+		return fmt.Errorf("%w: invalid input type %v", ErrInput, t.Kind())
 	}
 	return nil
 }
@@ -52,47 +52,64 @@ type valueFieldPair struct {
 }
 
 func (m *Model) encodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value) error {
-	fieldMap := make(map[byte]valueFieldPair)
+	m.mu.RLock()
+	fieldMap, exists := m.fieldCache[t]
+	m.mu.RUnlock()
 
-	for i := range v.NumField() {
-		field := t.Field(i)
-		value := v.Field(i)
+	if !exists {
+		fieldMap = make(map[string]reflect.Value)
 
-		if !value.CanInterface() {
-			continue
+		for i := 0; i < v.NumField(); i++ {
+			field := t.Field(i)
+			value := v.Field(i)
+
+			if !value.CanInterface() {
+				continue
+			}
+
+			fieldName := field.Name
+			if tag := field.Tag.Get("bufti"); tag != "" {
+				fieldName = tag
+			}
+			fieldMap[fieldName] = value
 		}
 
-		fieldName := field.Name
-		if tag := field.Tag.Get("bufti"); tag != "" {
-			fieldName = tag
+		m.mu.Lock()
+		if m.fieldCache == nil {
+			m.fieldCache = make(map[reflect.Type]map[string]reflect.Value)
 		}
+		m.fieldCache[t] = fieldMap
+		m.mu.Unlock()
+	}
 
+	valueFieldPairs := make(map[byte]valueFieldPair)
+	for fieldName, value := range fieldMap {
 		index, exists := m.labels[fieldName]
 		if !exists {
 			continue
 		}
 
 		schemaField, exists := m.schema[index]
-		if !exists && *(schemaField.isRequired) {
+		if !exists && schemaField.isRequired != nil && *schemaField.isRequired {
 			return fmt.Errorf("%w: index %d not found on model %s", ErrModel, index, m.name)
 		}
 		if !exists {
 			continue
 		}
 
-		fieldMap[index] = valueFieldPair{v: value, field: schemaField}
+		valueFieldPairs[index] = valueFieldPair{v: value, field: schemaField}
 	}
 
-	if err := binary.Write(buf, binary.LittleEndian, uint32(len(fieldMap))); err != nil {
+	if err := binary.Write(buf, binary.LittleEndian, uint32(len(valueFieldPairs))); err != nil {
 		return err
 	}
 
-	for index, pair := range fieldMap {
+	for index, pair := range valueFieldPairs {
 		if err := buf.WriteByte(index); err != nil {
 			return err
 		}
 
-		if err := pair.field.fieldType.Encode(buf, pair.v.Interface()); err != nil { // ! Why interface() here and don't just keep the reflect value?
+		if err := pair.field.fieldType.Encode(buf, pair.v); err != nil {
 			return err
 		}
 	}
@@ -136,7 +153,7 @@ func (m *Model) encodeMap(buf *bytes.Buffer, _ reflect.Type, v reflect.Value) er
 			return err
 		}
 
-		if err := pair.field.fieldType.Encode(buf, pair.v.Interface()); err != nil {
+		if err := pair.field.fieldType.Encode(buf, pair.v); err != nil {
 			return err
 		}
 	}
