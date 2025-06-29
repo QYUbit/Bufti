@@ -111,7 +111,7 @@ func TestMapMap(t *testing.T) {
 
 	b, err := mapModel.Encode(mapmap)
 	if err != nil {
-		t.Fatal(b)
+		t.Fatal(err)
 	}
 
 	t.Log(b)
@@ -126,7 +126,7 @@ func TestMapMap(t *testing.T) {
 
 func TestReferenceType(t *testing.T) { // ! Doesn't work
 	type OtherStruct struct {
-		Text string `bufti:"map"`
+		Text string `bufti:"text"`
 	}
 
 	type ReferenceStruct struct {
@@ -152,10 +152,10 @@ func TestReferenceType(t *testing.T) { // ! Doesn't work
 		t.Fatal(b)
 	}
 
-	t.Log(b) // ! Prints incomplete buffer ([1 0 0 0 1 0 0 0 0 0 0 0 0])
+	t.Log(b)
 
 	var dest ReferenceStruct
-	if err := referenceModel.Decode(b, &dest); err != nil { // ! Fails
+	if err := referenceModel.Decode(b, &dest); err != nil {
 		t.Fatal(err)
 	}
 

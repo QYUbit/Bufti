@@ -10,7 +10,7 @@ import (
 // TODO Indirect values before decoding
 
 type BuftiType interface {
-	Encode(*bytes.Buffer, any) error
+	Encode(*bytes.Buffer, reflect.Value) error
 	Decode(*bytes.Buffer, reflect.Value) error
 }
 
@@ -33,7 +33,7 @@ const (
 )
 
 func (t SimpleType) String() string {
-	typeNames := [8]string{"int8", "int16", "int32", "int64", "float64", "float32", "boolean", "string"}
+	typeNames := [13]string{"boolean", "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64", "float32", "float64", "bytes", "string"}
 	return fmt.Sprintf("bufti %s", typeNames[t])
 }
 
@@ -72,10 +72,12 @@ func (t ListType) String() string {
 	return fmt.Sprintf("bufti list of %ss", t.elementType)
 }
 
-func (t ListType) Encode(buf *bytes.Buffer, value any) error {
-	val := reflect.ValueOf(value)
+func (t ListType) Encode(buf *bytes.Buffer, val reflect.Value) error {
+	if val.Kind() == reflect.Interface {
+		val = val.Elem()
+	}
 	if val.Kind() != reflect.Slice {
-		return fmt.Errorf("can not encode value of type %T as %s", value, t)
+		return fmt.Errorf("can not encode value of type %v as %s", val.Kind(), t)
 	}
 	if err := binary.Write(buf, binary.LittleEndian, uint32(val.Len())); err != nil {
 		return err
@@ -85,7 +87,7 @@ func (t ListType) Encode(buf *bytes.Buffer, value any) error {
 		if !val.CanInterface() {
 			continue
 		}
-		if err := t.elementType.Encode(buf, val.Index(i).Interface()); err != nil {
+		if err := t.elementType.Encode(buf, val.Index(i)); err != nil {
 			return err
 		}
 	}
@@ -130,10 +132,12 @@ func (t MapType) String() string {
 	return fmt.Sprintf("bufti map (%s -> %s)", t.keyType, t.valueType)
 }
 
-func (t MapType) Encode(buf *bytes.Buffer, value any) error {
-	val := reflect.ValueOf(value)
+func (t MapType) Encode(buf *bytes.Buffer, val reflect.Value) error {
+	if val.Kind() == reflect.Interface {
+		val = val.Elem()
+	}
 	if val.Kind() != reflect.Map {
-		return fmt.Errorf("can not encode value of type %T as %s", value, t)
+		return fmt.Errorf("can not encode value of type %v as %s", val.Kind(), t)
 	}
 	if err := binary.Write(buf, binary.LittleEndian, uint32(val.Len())); err != nil {
 		return err
@@ -143,10 +147,10 @@ func (t MapType) Encode(buf *bytes.Buffer, value any) error {
 		if !key.CanInterface() || !val.MapIndex(key).CanInterface() {
 			continue
 		}
-		if err := t.keyType.Encode(buf, key.Interface()); err != nil {
+		if err := t.keyType.Encode(buf, key); err != nil {
 			return err
 		}
-		if err := t.valueType.Encode(buf, val.MapIndex(key).Interface()); err != nil {
+		if err := t.valueType.Encode(buf, val.MapIndex(key)); err != nil {
 			return err
 		}
 	}
@@ -202,8 +206,8 @@ func (t ReferenceType) String() string {
 	return fmt.Sprintf("bufti model %s", t.model.name)
 }
 
-func (t ReferenceType) Encode(buf *bytes.Buffer, data any) error {
-	return t.model.encode(buf, data)
+func (t ReferenceType) Encode(buf *bytes.Buffer, val reflect.Value) error {
+	return t.model.encode(buf, val.Type(), val)
 }
 
 func (t ReferenceType) Decode(buf *bytes.Buffer, val reflect.Value) error {
@@ -212,6 +216,9 @@ func (t ReferenceType) Decode(buf *bytes.Buffer, val reflect.Value) error {
 
 func indirectValue(v reflect.Value) reflect.Value {
 	for v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			v.Set(reflect.New(v.Type().Elem()))
+		}
 		v = v.Elem()
 	}
 	return v

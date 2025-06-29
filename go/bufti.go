@@ -3,6 +3,7 @@ package bufti2
 import (
 	"bytes"
 	"errors"
+	"reflect"
 	"sync"
 )
 
@@ -64,9 +65,11 @@ func OptionalField(index byte, label string, fieldType BuftiType) ModelField {
 }
 
 type Model struct {
-	name   string
-	schema map[byte]ModelField
-	labels map[string]byte
+	name       string
+	schema     map[byte]ModelField
+	labels     map[string]byte
+	fieldCache map[reflect.Type]map[string]reflect.Value
+	mu         sync.RWMutex
 }
 
 func NewModel(fields ...ModelField) *Model {

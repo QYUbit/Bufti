@@ -4,11 +4,17 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"math"
 	"reflect"
 )
 
-func (t SimpleType) Encode(buf *bytes.Buffer, value any) error {
+func (t SimpleType) Encode(buf *bytes.Buffer, reflectValue reflect.Value) error {
+	if !reflectValue.CanInterface() {
+		return fmt.Errorf("%w: value cannot be converted to a interface interface", ErrInput)
+	}
+	value := reflectValue.Interface()
+
 	switch t {
 	case Int8:
 		var v int8
@@ -582,6 +588,7 @@ func (t SimpleType) Decode(buf *bytes.Buffer, val reflect.Value) error {
 		if !val.CanSet() {
 			return fmt.Errorf("%w: cannot set string value", ErrInput)
 		}
+
 		var length uint32
 		if err := binary.Read(buf, binary.LittleEndian, &length); err != nil {
 			return fmt.Errorf("%w: failed to decode string length: %w", ErrBuffer, err)
@@ -590,16 +597,17 @@ func (t SimpleType) Decode(buf *bytes.Buffer, val reflect.Value) error {
 			return fmt.Errorf("string length %d exceeds buffer size %d", length, buf.Len())
 		}
 
-		data := make([]byte, length)
-		n, err := buf.Read(data)
-		if err != nil {
-			return fmt.Errorf("%w: failed to decode string data: %w", ErrBuffer, err)
-		}
-		if n != int(length) {
-			return fmt.Errorf("%w: expected to read %d bytes, got %d", ErrBuffer, length, n)
+		if length == 0 {
+			val.SetString("")
+			return nil
 		}
 
+		data := buf.Next(int(length))
+		if len(data) != int(length) {
+			return io.ErrUnexpectedEOF
+		}
 		strVal := string(data)
+
 		switch val.Kind() {
 		case reflect.String:
 			val.SetString(strVal)
