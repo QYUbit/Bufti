@@ -1,4 +1,4 @@
-package bufti
+package bufti2
 
 import (
 	"bytes"
@@ -7,179 +7,138 @@ import (
 	"reflect"
 )
 
-// Encode encodes the provided map into a byte array.
-func (m *Model) Encode(pl map[string]any) ([]byte, error) {
-	buf := bytes.NewBuffer([]byte{})
-	buf.Grow(2*len(pl) + 2)
+func (m *Model) Encode(data any) ([]byte, error) {
+	buf := bufferPool.Get().(*bytes.Buffer)
+	defer bufferPool.Put(buf)
 
-	if err := buf.WriteByte(MajorVersion); err != nil {
+	buf.Reset()
+
+	if err := binary.Write(buf, binary.LittleEndian, ProtocolVersion); err != nil {
+		return nil, fmt.Errorf("failed to write protocol version")
+	}
+
+	if err := m.encode(buf, data); err != nil {
 		return nil, err
 	}
-	if err := m.encode(buf, pl); err != nil {
-		return nil, err
-	}
+
 	return buf.Bytes(), nil
 }
 
-func (m *Model) encode(buf *bytes.Buffer, pl map[string]any) error {
-	for label, value := range pl {
-		index, exists := m.labels[label]
-		if !exists {
-			return fmt.Errorf("%w: label not found (%s)", ErrPayloadFormat, label)
-		}
-		schemaField, exists := m.schema[index]
-		if !exists {
-			return fmt.Errorf("%w: index not found (%d)", ErrModel, index)
-		}
-		valType := schemaField.fieldType
+func (m *Model) encode(buf *bytes.Buffer, data any) error {
+	v := reflect.ValueOf(data)
+	t := reflect.TypeOf(data)
 
+	v = indirectValue(v)
+	t = indirectType(t)
+
+	switch t.Kind() {
+	case reflect.Struct:
+		if err := m.encodeStruct(buf, t, v); err != nil {
+			return err
+		}
+	case reflect.Map:
+		if err := m.encodeMap(buf, t, v); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("%w: invalid input type %T", ErrInput, data)
+	}
+	return nil
+}
+
+type valueFieldPair struct {
+	v     reflect.Value
+	field ModelField
+}
+
+func (m *Model) encodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value) error {
+	fieldMap := make(map[byte]valueFieldPair)
+
+	for i := range v.NumField() {
+		field := t.Field(i)
+		value := v.Field(i)
+
+		if !value.CanInterface() {
+			continue
+		}
+
+		fieldName := field.Name
+		if tag := field.Tag.Get("bufti"); tag != "" {
+			fieldName = tag
+		}
+
+		index, exists := m.labels[fieldName]
+		if !exists {
+			continue
+		}
+
+		schemaField, exists := m.schema[index]
+		if !exists && *(schemaField.isRequired) {
+			return fmt.Errorf("%w: index %d not found on model %s", ErrModel, index, m.name)
+		}
+		if !exists {
+			continue
+		}
+
+		fieldMap[index] = valueFieldPair{v: value, field: schemaField}
+	}
+
+	if err := binary.Write(buf, binary.LittleEndian, uint32(len(fieldMap))); err != nil {
+		return err
+	}
+
+	for index, pair := range fieldMap {
 		if err := buf.WriteByte(index); err != nil {
 			return err
 		}
 
-		if err := encodeValue(buf, value, valType); err != nil {
+		if err := pair.field.fieldType.Encode(buf, pair.v.Interface()); err != nil { // ! Why interface() here and don't just keep the reflect value?
 			return err
 		}
 	}
 	return nil
 }
 
-func encodeValue(buf *bytes.Buffer, value any, valType BuftiType) error {
-	switch valType {
-	case Int8Type:
-		v, ok := value.(int8)
-		if ok {
-			return binary.Write(buf, binary.BigEndian, v)
-		}
-		v2, ok := value.(int)
-		if ok && isInRange(float64(v2), -128, 127) {
-			return binary.Write(buf, binary.BigEndian, int8(v2))
-		}
-		return fmt.Errorf("%w: can not apply value of type %T to %s", ErrPayloadFormat, value, valType)
-	case Int16Type:
-		v, ok := value.(int16)
-		if ok {
-			return binary.Write(buf, binary.BigEndian, v)
-		}
-		v2, ok := value.(int)
-		if ok && isInRange(float64(v2), -32768, 32767) {
-			return binary.Write(buf, binary.BigEndian, int16(v2))
-		}
-		return fmt.Errorf("%w: can not apply value of type %T to %s", ErrPayloadFormat, value, valType)
-	case Int32Type:
-		v, ok := value.(int32)
-		if ok {
-			return binary.Write(buf, binary.BigEndian, v)
-		}
-		v2, ok := value.(int)
-		if ok && isInRange(float64(v2), -2147483648, 2147483647) {
-			return binary.Write(buf, binary.BigEndian, int32(v2))
-		}
-		return fmt.Errorf("%w: can not apply value of type %T to %s", ErrPayloadFormat, value, valType)
-	case Int64Type:
-		v, ok := value.(int64)
-		if ok {
-			return binary.Write(buf, binary.BigEndian, v)
-		}
-		v2, ok := value.(int)
-		if ok {
-			return binary.Write(buf, binary.BigEndian, int64(v2))
-		}
-		return fmt.Errorf("%w: can not apply value of type %T to %s", ErrPayloadFormat, value, valType)
-	case Float32Type:
-		v, ok := value.(float32)
-		if ok {
-			return binary.Write(buf, binary.BigEndian, v)
-		}
-		v2, ok := value.(float64)
-		if ok && isInRange(v2, -3.4e38, 3.4e38) {
-			return binary.Write(buf, binary.BigEndian, float32(v2))
-		}
-		return fmt.Errorf("%w: can not apply value of type %T to %s", ErrPayloadFormat, value, valType)
-	case Float64Type:
-		v, ok := value.(float64)
+func (m *Model) encodeMap(buf *bytes.Buffer, _ reflect.Type, v reflect.Value) error {
+	fieldMap := make(map[byte]valueFieldPair)
+
+	for _, k := range v.MapKeys() {
+		key := k.Interface()
+		value := v.MapIndex(k)
+
+		strKey, ok := key.(string)
 		if !ok {
-			return fmt.Errorf("%w: can not apply value of type %T to %s", ErrPayloadFormat, value, valType)
+			return fmt.Errorf("%w: map key has to be a string, intead: %T", ErrInput, key)
 		}
-		return binary.Write(buf, binary.BigEndian, v)
-	case BoolType:
-		v, ok := value.(bool)
-		if !ok {
-			return fmt.Errorf("%w: can not apply value of type %T to %s", ErrPayloadFormat, value, valType)
+
+		index, exists := m.labels[strKey]
+		if !exists {
+			continue
 		}
-		return binary.Write(buf, binary.BigEndian, v)
-	case StringType:
-		v, ok := value.(string)
-		if !ok {
-			return fmt.Errorf("%w: can not apply value of type %T to %s", ErrPayloadFormat, value, valType)
+
+		schemaField, exists := m.schema[index]
+		if !exists && *(schemaField.isRequired) {
+			return fmt.Errorf("%w: index %d not found on model %s", ErrModel, index, m.name)
 		}
-		if err := binary.Write(buf, binary.BigEndian, uint16(len(v))); err != nil {
-			return err
+		if !exists {
+			continue
 		}
-		_, err := buf.Write([]byte(v))
+
+		fieldMap[index] = valueFieldPair{v: value, field: schemaField}
+	}
+
+	if err := binary.Write(buf, binary.LittleEndian, uint32(v.Len())); err != nil {
 		return err
 	}
 
-	listType, isList := isListType(valType)
-	if isList {
-		val := reflect.ValueOf(value)
-		if val.Kind() != reflect.Slice && val.Kind() != reflect.Array {
-			return fmt.Errorf("%w: can not apply value of type %T to %s", ErrPayloadFormat, value, valType)
-		}
-
-		if err := binary.Write(buf, binary.BigEndian, uint16(val.Len())); err != nil {
+	for index, pair := range fieldMap {
+		if err := buf.WriteByte(index); err != nil {
 			return err
 		}
 
-		for i := range val.Len() {
-			if err := encodeValue(buf, val.Index(i).Interface(), listType); err != nil {
-				return err
-			}
+		if err := pair.field.fieldType.Encode(buf, pair.v.Interface()); err != nil {
+			return err
 		}
-		return nil
 	}
-
-	keyType, valueType, isList := isMapType(valType)
-	if isList {
-		val := reflect.ValueOf(value)
-		if val.Kind() != reflect.Map {
-			return fmt.Errorf("%w: can not apply value of type %T to %s", ErrPayloadFormat, value, valType)
-		}
-
-		if err := binary.Write(buf, binary.BigEndian, uint16(val.Len())); err != nil {
-			return err
-		}
-
-		for _, key := range val.MapKeys() {
-			if err := encodeValue(buf, key.Interface(), keyType); err != nil {
-				return err
-			}
-			if err := encodeValue(buf, val.MapIndex(key).Interface(), valueType); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-
-	modelName, isModel := isModelType(valType)
-	if isModel {
-		model, exists := registeredModels.get(modelName)
-		if !exists {
-			return fmt.Errorf("%w: can not find the model %s", ErrModel, modelName)
-		}
-		pl, ok := value.(map[string]any)
-		if !ok {
-			return fmt.Errorf("%w: can not apply value of type %T to %s", ErrPayloadFormat, value, valType)
-		}
-
-		if err := binary.Write(buf, binary.BigEndian, uint16(len(pl))); err != nil {
-			return err
-		}
-		if err := model.encode(buf, pl); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	return fmt.Errorf("%w: invalid schema type (%s)", ErrModel, valType)
+	return nil
 }
