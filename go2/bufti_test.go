@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-var userModel = NewModel("user",
+var userModel = NewModel(
 	Field(0, "id", Int64),
 	Field(1, "name", String),
 	Field(2, "postIDs", List(Int64)),
@@ -69,7 +69,7 @@ func TestMapType(t *testing.T) {
 		M map[string]int `bufti:"map"`
 	}
 
-	mapModel := NewModel("mapModel",
+	mapModel := NewModel(
 		Field(0, "map", Map(String, Int64)),
 	)
 
@@ -97,7 +97,7 @@ func TestMapType(t *testing.T) {
 }
 
 func TestMapMap(t *testing.T) {
-	mapModel := NewModel("mapModel",
+	mapModel := NewModel(
 		Field(0, "map", Map(String, Int64)),
 	)
 
@@ -124,7 +124,7 @@ func TestMapMap(t *testing.T) {
 	t.Log(dest)
 }
 
-func TestReferenceType(t *testing.T) { // !
+func TestReferenceType(t *testing.T) { // ! Doesn't work
 	type OtherStruct struct {
 		Text string `bufti:"map"`
 	}
@@ -133,11 +133,11 @@ func TestReferenceType(t *testing.T) { // !
 		Reference *OtherStruct `bufti:"reference"`
 	}
 
-	otherModel := NewModel("otherModel",
+	otherModel := NewModel(
 		Field(0, "text", String),
 	)
 
-	referenceModel := NewModel("referenceModel",
+	referenceModel := NewModel(
 		Field(0, "reference", Reference(otherModel)),
 	)
 
@@ -152,10 +152,10 @@ func TestReferenceType(t *testing.T) { // !
 		t.Fatal(b)
 	}
 
-	t.Log(b)
+	t.Log(b) // ! Prints incomplete buffer ([1 0 0 0 1 0 0 0 0 0 0 0 0])
 
 	var dest ReferenceStruct
-	if err := referenceModel.Decode(b, &dest); err != nil {
+	if err := referenceModel.Decode(b, &dest); err != nil { // ! Fails
 		t.Fatal(err)
 	}
 

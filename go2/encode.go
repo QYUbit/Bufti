@@ -73,7 +73,7 @@ func (m *Model) encodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value)
 		}
 
 		schemaField, exists := m.schema[index]
-		if !exists && schemaField.isRequired {
+		if !exists && *(schemaField.isRequired) {
 			return fmt.Errorf("%w: index %d not found on model %s", ErrModel, index, m.name)
 		}
 		if !exists {
@@ -117,7 +117,7 @@ func (m *Model) encodeMap(buf *bytes.Buffer, _ reflect.Type, v reflect.Value) er
 		}
 
 		schemaField, exists := m.schema[index]
-		if !exists && schemaField.isRequired {
+		if !exists && *(schemaField.isRequired) {
 			return fmt.Errorf("%w: index %d not found on model %s", ErrModel, index, m.name)
 		}
 		if !exists {
