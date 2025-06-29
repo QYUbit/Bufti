@@ -1,4 +1,4 @@
-package bufti2
+package bufti
 
 import (
 	"bytes"

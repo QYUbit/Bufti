@@ -1,3 +1,3 @@
-module bufti2
+module bufti
 
 go 1.22.5

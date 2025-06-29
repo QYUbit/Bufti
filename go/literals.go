@@ -1,4 +1,4 @@
-package bufti2
+package bufti
 
 import (
 	"bytes"
@@ -640,7 +640,10 @@ func (t SimpleType) Decode(buf *bytes.Buffer, val reflect.Value) error {
 		}
 
 		switch val.Kind() {
-		case reflect.String:
+		case reflect.Slice:
+			if reflect.SliceOf(reflect.TypeOf(byte(0))) != val.Type() {
+				return fmt.Errorf("%w: bytes destination has to be a byte slice, got %s", ErrInput, val.Type().String())
+			}
 			val.SetBytes(data)
 		case reflect.Interface:
 			val.Set(reflect.ValueOf(data))

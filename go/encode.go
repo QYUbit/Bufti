@@ -1,4 +1,4 @@
-package bufti2
+package bufti
 
 import (
 	"bytes"
@@ -8,6 +8,10 @@ import (
 )
 
 func (m *Model) Encode(data any) ([]byte, error) {
+	if data == nil {
+		return nil, fmt.Errorf("%w: cannot encode nil", ErrInput)
+	}
+
 	buf := bufferPool.Get().(*bytes.Buffer)
 	defer func() {
 		buf.Reset()
