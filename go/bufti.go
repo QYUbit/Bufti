@@ -1,141 +1,116 @@
-package bufti
+package bufti2
 
 import (
+	"bytes"
 	"errors"
-	"fmt"
-	"slices"
 	"sync"
 )
 
-const MajorVersion = 0
+const ProtocolVersion uint32 = 1
 
 var (
-	ErrModel         = errors.New("invalid bufti model")
-	ErrVersion       = errors.New("incompatible version")
-	ErrNilSlice      = errors.New("bytes slice is nil")
-	ErrBufferFormat  = errors.New("unexpected buffer format")
-	ErrPayloadFormat = errors.New("unexpected bufti payload format")
+	// Indicates an incompatible version of a buffer.
+	ErrVersion = errors.New("incompatible buffer version")
+
+	// Indicates an invalid encode input value or decode testination value.
+	ErrInput = errors.New("unexpected input")
+
+	// Indicates an invalid buffer.
+	ErrBuffer = errors.New("invalid buffer")
+
+	// Indicates an error inside of a model.
+	ErrModel = errors.New("invalid model")
 )
 
-type BuftiType string
-
-const (
-	Int8Type    BuftiType = "int8"
-	Int16Type   BuftiType = "int16"
-	Int32Type   BuftiType = "int32"
-	Int64Type   BuftiType = "int64"
-	Float32Type BuftiType = "float32"
-	Float64Type BuftiType = "float64"
-	BoolType    BuftiType = "bool"
-	StringType  BuftiType = "string"
-)
-
-var simpelTypes = []BuftiType{Int8Type, Int16Type, Int32Type, Int64Type, Float32Type, Float64Type, StringType, BoolType}
-
-// Creates a new BuftiListType based on the given element type.
-func NewListType(elementType BuftiType) BuftiType {
-	return BuftiType(fmt.Sprintf("list:%s", elementType))
+var bufferPool = sync.Pool{
+	New: func() any {
+		return bytes.NewBuffer(make([]byte, 0, 512))
+	},
 }
 
-// Creates a new BuftiMapType based on the given key type and value type. Only use simple types as keys (e.g. ints, floats, string, bool). Panics when given unexpected inputs.
-func NewMapType(keyType BuftiType, valueType BuftiType) BuftiType {
-	if !slices.Contains(simpelTypes, keyType) {
-		panic(fmt.Sprintf("can only use simple types as map key, instead: %s", keyType))
-	}
-	return BuftiType(fmt.Sprintf("map:%s:%s", keyType, valueType))
+type ModelField struct {
+	index      byte
+	label      string
+	fieldType  BuftiType
+	isRequired *bool
 }
 
-// Creates a new BuftiModelType with the specified reference model.
-func NewModelType(model *Model) BuftiType {
-	return BuftiType(fmt.Sprintf("model:%s", model.name))
-}
-
-type Field struct {
-	index     byte
-	label     string
-	fieldType BuftiType
-}
-
-// Creates a new model field based on index, label and type. Index has to be between 0 and 255. Panics when given unexpected inputs.
-func NewField(index int, label string, fieldType BuftiType) Field {
-	if !isInRange(float64(index), 0, 255) {
-		panic("index has to be between 0 and 255")
-	}
-	if label == "" {
-		panic("label must not be empty")
-	}
-	return Field{
-		index:     byte(index),
+func Field(index byte, label string, fieldType BuftiType) ModelField {
+	return ModelField{
+		index:     index,
 		label:     label,
 		fieldType: fieldType,
 	}
 }
 
-type modelRegister struct {
-	models map[string]*Model
-	mu     sync.Mutex
+func RequiredField(index byte, label string, fieldType BuftiType) ModelField {
+	trueValue := true
+	return ModelField{
+		index:      index,
+		label:      label,
+		fieldType:  fieldType,
+		isRequired: &trueValue,
+	}
 }
 
-func (mr *modelRegister) register(model *Model) {
-	mr.mu.Lock()
-	mr.models[model.name] = model
-	mr.mu.Unlock()
-}
-
-func (mr *modelRegister) get(name string) (*Model, bool) {
-	mr.mu.Lock()
-	model, exists := mr.models[name]
-	mr.mu.Unlock()
-	return model, exists
-}
-
-var registeredModels = modelRegister{models: make(map[string]*Model)}
-
-type fieldSchema struct {
-	label     string
-	fieldType BuftiType
+func OptionalField(index byte, label string, fieldType BuftiType) ModelField {
+	falseValue := false
+	return ModelField{
+		index:      index,
+		label:      label,
+		fieldType:  fieldType,
+		isRequired: &falseValue,
+	}
 }
 
 type Model struct {
 	name   string
-	schema map[byte]fieldSchema
+	schema map[byte]ModelField
 	labels map[string]byte
 }
 
-// Creates a new model which represents the way data gets en/decoded. Model name has to be unique. Panics when given unexpected inputs. Do not use this function in seperate go routines.
-func NewModel(name string, fields ...Field) *Model {
-	if name == "" {
-		panic("model name must not be empty")
-	}
-	if _, exists := registeredModels.get(name); exists {
-		panic(fmt.Sprintf("model with name \"%s\" already exists", name))
-	}
-
+func NewModel(fields ...ModelField) *Model {
 	m := &Model{
-		name:   name,
-		schema: make(map[byte]fieldSchema),
+		name:   "unnamed_model",
+		schema: make(map[byte]ModelField),
 		labels: make(map[string]byte),
 	}
-	registeredModels.register(m)
 
 	for _, f := range fields {
-		if _, exists := m.labels[f.label]; exists {
-			panic(fmt.Sprintf("duplicate label %s in model %s", f.label, m.name))
+		if f.isRequired == nil {
+			trueValue := true
+			f.isRequired = &trueValue
 		}
-		if _, exists := m.schema[f.index]; exists {
-			panic(fmt.Sprintf("duplicate index %d in model %s", f.index, m.name))
-		}
-
 		m.labels[f.label] = f.index
-		m.schema[f.index] = fieldSchema{
-			label:     f.label,
-			fieldType: f.fieldType,
-		}
+		m.schema[f.index] = f
 	}
 	return m
 }
 
-// Returns the string representation of the model.
-func (m *Model) String() string {
-	return fmt.Sprintf("model %s %v", m.name, m.schema)
+type ModelOptions struct {
+	Name              string
+	RequiredByDefault bool
+}
+
+func NewModelWithOptions(options *ModelOptions, fields ...ModelField) *Model {
+	m := &Model{
+		name:   options.Name,
+		schema: make(map[byte]ModelField),
+		labels: make(map[string]byte),
+	}
+
+	for _, f := range fields {
+		if f.isRequired == nil {
+			if options.RequiredByDefault {
+				trueValue := true
+				f.isRequired = &trueValue
+			} else {
+				falseValue := false
+				f.isRequired = &falseValue
+			}
+		}
+		m.labels[f.label] = f.index
+		m.schema[f.index] = f
+	}
+	return m
 }
