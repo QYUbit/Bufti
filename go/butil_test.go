@@ -1,4 +1,4 @@
-package bufti
+package butil
 
 import (
 	"bytes"
@@ -9,26 +9,26 @@ import (
 )
 
 type SimpleStruct struct {
-	ID   int64   `bufti:"id"`
-	Name string  `bufti:"name"`
-	Age  int32   `bufti:"age"`
-	Rate float64 `bufti:"rate"`
+	ID   int64   `butil:"id"`
+	Name string  `butil:"name"`
+	Age  int32   `butil:"age"`
+	Rate float64 `butil:"rate"`
 }
 
 type ComplexStruct struct {
-	ID       int64            `bufti:"id"`
-	Name     string           `bufti:"name"`
-	Tags     []string         `bufti:"tags"`
-	Scores   []float64        `bufti:"scores"`
-	Metadata map[string]int64 `bufti:"metadata"`
-	Active   bool             `bufti:"active"`
-	Data     []byte           `bufti:"data"`
+	ID       int64            `butil:"id"`
+	Name     string           `butil:"name"`
+	Tags     []string         `butil:"tags"`
+	Scores   []float64        `butil:"scores"`
+	Metadata map[string]int64 `butil:"metadata"`
+	Active   bool             `butil:"active"`
+	Data     []byte           `butil:"data"`
 }
 
 type NestedStruct struct {
-	ID       int64          `bufti:"id"`
-	Simple   SimpleStruct   `bufti:"simple"`
-	Children []SimpleStruct `bufti:"children"`
+	ID       int64          `butil:"id"`
+	Simple   SimpleStruct   `butil:"simple"`
+	Children []SimpleStruct `butil:"children"`
 }
 
 // Test Models

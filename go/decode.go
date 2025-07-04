@@ -1,4 +1,4 @@
-package bufti
+package butil
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 
 // Decode deserializes binary data into the given destination according to the model schema.
 // The destination must be a pointer to a struct or map[string]any.
-// Struct fields are mapped from schema fields using either the field name or the `bufti` tag.
+// Struct fields are mapped from schema fields using either the field name or the `butil` tag.
 //
 // Returns ErrInput if dest is not a pointer or is nil.
 // Returns ErrVersion if the data was encoded with an incompatible protocol version.
@@ -36,7 +36,7 @@ func (m *Model) Decode(data []byte, dest any) error {
 		return fmt.Errorf("%w: failed to read protocol version", ErrBuffer)
 	}
 	if version != ProtocolVersion {
-		return fmt.Errorf("%w: incompatible bufti version: this package uses version %d, buffer uses version %d", ErrVersion, ProtocolVersion, version)
+		return fmt.Errorf("%w: incompatible butil version: this package uses version %d, buffer uses version %d", ErrVersion, ProtocolVersion, version)
 	}
 
 	return m.decode(buf, t, v)
@@ -73,7 +73,7 @@ func (m *Model) decodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value,
 		}
 
 		fieldName := field.Name
-		if tag := field.Tag.Get("bufti"); tag != "" {
+		if tag := field.Tag.Get("butil"); tag != "" {
 			fieldName = tag
 		}
 

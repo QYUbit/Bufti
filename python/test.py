@@ -1,5 +1,5 @@
 import unittest
-from bufti import Model, Field, create_list_type, create_map_type, create_model_type, INT32_TYPE, INT64_TYPE, FLOAT64_TYPE, BOOL_TYPE, STRING_TYPE, registered_models
+from butil import Model, Field, create_list_type, create_map_type, create_model_type, INT32_TYPE, INT64_TYPE, FLOAT64_TYPE, BOOL_TYPE, STRING_TYPE, registered_models
 
 class TestModelFunctionality(unittest.TestCase):
     @classmethod

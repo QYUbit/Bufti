@@ -1,4 +1,4 @@
-package bufti
+package butil
 
 import (
 	"bytes"

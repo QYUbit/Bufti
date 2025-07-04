@@ -1,4 +1,4 @@
-package bufti
+package butil
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 
 // Encode serializes the given data according to the model schema.
 // The data can be a struct or map[string]any. Struct fields are mapped to
-// schema fields using either the field name or the `bufti` tag.
+// schema fields using either the field name or the `butil` tag.
 //
 // Returns ErrInput if the data is nil or of an unsupported type.
 // Returns ErrModel if required fields are missing or schema validation fails.
@@ -78,7 +78,7 @@ func (m *Model) encodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value)
 			}
 
 			fieldName := field.Name
-			if tag := field.Tag.Get("bufti"); tag != "" {
+			if tag := field.Tag.Get("butil"); tag != "" {
 				fieldName = tag
 			}
 			fieldMap[fieldName] = value

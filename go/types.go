@@ -1,4 +1,4 @@
-package bufti
+package butil
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 
 // ? Indirect values before decoding
 
-// BuftiType defines the interface for all serializable types in the bufti system.
+// BuftiType defines the interface for all serializable types in the butil system.
 // Types implementing this interface can be used as field types in model schemas.
 type BuftiType interface {
 	// Encode serializes the given reflect.Value to the buffer.
@@ -39,7 +39,7 @@ const (
 
 func (t SimpleType) String() string {
 	typeNames := [13]string{"boolean", "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64", "float32", "float64", "bytes", "string"}
-	return fmt.Sprintf("bufti %s", typeNames[t])
+	return fmt.Sprintf("butil %s", typeNames[t])
 }
 
 func (t SimpleType) reflectType() (reflect.Type, error) {
@@ -76,7 +76,7 @@ func List(elementType BuftiType) ListType {
 }
 
 func (t ListType) String() string {
-	return fmt.Sprintf("bufti list of %ss", t.elementType)
+	return fmt.Sprintf("butil list of %ss", t.elementType)
 }
 
 func (t ListType) Encode(buf *bytes.Buffer, val reflect.Value) error {
@@ -138,7 +138,7 @@ func Map(keyType SimpleType, valueType BuftiType) MapType {
 }
 
 func (t MapType) String() string {
-	return fmt.Sprintf("bufti map (%s -> %s)", t.keyType, t.valueType)
+	return fmt.Sprintf("butil map (%s -> %s)", t.keyType, t.valueType)
 }
 
 func (t MapType) Encode(buf *bytes.Buffer, val reflect.Value) error {
@@ -215,7 +215,7 @@ func Reference(model *Model) ReferenceType {
 }
 
 func (t ReferenceType) String() string {
-	return fmt.Sprintf("bufti model %s", t.model.name)
+	return fmt.Sprintf("butil model %s", t.model.name)
 }
 
 func (t ReferenceType) Encode(buf *bytes.Buffer, val reflect.Value) error {

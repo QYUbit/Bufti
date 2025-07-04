@@ -1,3 +1,3 @@
-module bufti
+module butil
 
 go 1.22.5
