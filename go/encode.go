@@ -7,6 +7,12 @@ import (
 	"reflect"
 )
 
+// Encode serializes the given data according to the model schema.
+// The data can be a struct or map[string]any. Struct fields are mapped to
+// schema fields using either the field name or the `bufti` tag.
+//
+// Returns ErrInput if the data is nil or of an unsupported type.
+// Returns ErrModel if required fields are missing or schema validation fails.
 func (m *Model) Encode(data any) ([]byte, error) {
 	if data == nil {
 		return nil, fmt.Errorf("%w: cannot encode nil", ErrInput)
@@ -61,7 +67,7 @@ func (m *Model) encodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value)
 	m.mu.RUnlock()
 
 	if !exists {
-		fieldMap = make(map[string]reflect.Value)
+		fieldMap = make(map[string]reflect.Value, len(m.schema))
 
 		for i := 0; i < v.NumField(); i++ {
 			field := t.Field(i)
@@ -86,22 +92,31 @@ func (m *Model) encodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value)
 		m.mu.Unlock()
 	}
 
-	valueFieldPairs := make(map[byte]valueFieldPair)
+	valueFieldPairs := make(map[byte]valueFieldPair, len(m.schema))
 	for fieldName, value := range fieldMap {
 		index, exists := m.labels[fieldName]
 		if !exists {
-			continue
+			return fmt.Errorf("%w: field %s not found in model %s", ErrInput, fieldName, m.name)
 		}
 
 		schemaField, exists := m.schema[index]
-		if !exists && schemaField.isRequired != nil && *schemaField.isRequired {
-			return fmt.Errorf("%w: index %d not found on model %s", ErrModel, index, m.name)
-		}
 		if !exists {
-			continue
+			return fmt.Errorf("%w: index %d not found on model %s", ErrModel, index, m.name)
 		}
 
 		valueFieldPairs[index] = valueFieldPair{v: value, field: schemaField}
+	}
+
+	for index, field := range m.schema {
+		if field.isRequired == nil {
+			continue
+		}
+		if !*field.isRequired {
+			continue
+		}
+		if _, exists := valueFieldPairs[index]; !exists {
+			return fmt.Errorf("%w: required field %s is missing for model %s", ErrInput, field.label, m.name)
+		}
 	}
 
 	if err := binary.Write(buf, binary.LittleEndian, uint32(len(valueFieldPairs))); err != nil {
@@ -117,11 +132,12 @@ func (m *Model) encodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value)
 			return err
 		}
 	}
+
 	return nil
 }
 
 func (m *Model) encodeMap(buf *bytes.Buffer, _ reflect.Type, v reflect.Value) error {
-	fieldMap := make(map[byte]valueFieldPair)
+	fieldMap := make(map[byte]valueFieldPair, len(m.schema))
 
 	for _, k := range v.MapKeys() {
 		key := k.Interface()
@@ -134,18 +150,27 @@ func (m *Model) encodeMap(buf *bytes.Buffer, _ reflect.Type, v reflect.Value) er
 
 		index, exists := m.labels[strKey]
 		if !exists {
-			continue
+			return fmt.Errorf("%w: field %s not found in model %s", ErrInput, strKey, m.name)
 		}
 
 		schemaField, exists := m.schema[index]
-		if !exists && *(schemaField.isRequired) {
-			return fmt.Errorf("%w: index %d not found on model %s", ErrModel, index, m.name)
-		}
 		if !exists {
-			continue
+			return fmt.Errorf("%w: index %d not found on model %s", ErrModel, index, m.name)
 		}
 
 		fieldMap[index] = valueFieldPair{v: value, field: schemaField}
+	}
+
+	for index, field := range m.schema {
+		if field.isRequired == nil {
+			continue
+		}
+		if !*field.isRequired {
+			continue
+		}
+		if _, exists := fieldMap[index]; !exists {
+			return fmt.Errorf("%w: required field %s is missing for model %s", ErrInput, field.label, m.name)
+		}
 	}
 
 	if err := binary.Write(buf, binary.LittleEndian, uint32(v.Len())); err != nil {

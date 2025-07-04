@@ -32,14 +32,16 @@ type NestedStruct struct {
 }
 
 // Test Models
-var simpleModel = NewModel(
+var simpleModel = newModelWithOptions(
+	&ModelOptions{Name: "simple model", RequiredByDefault: false},
 	Field(0, "id", Int64),
 	Field(1, "name", String),
 	Field(2, "age", Int32),
 	Field(3, "rate", Float64),
 )
 
-var complexModel = NewModel(
+var complexModel = newModelWithOptions(
+	&ModelOptions{Name: "complex model", RequiredByDefault: false},
 	Field(0, "id", Int64),
 	Field(1, "name", String),
 	Field(2, "tags", List(String)),
@@ -59,97 +61,97 @@ func TestSimpleTypes(t *testing.T) {
 	}{
 		{
 			name:     "int8",
-			model:    NewModel(Field(0, "value", Int8)),
+			model:    newModel(Field(0, "value", Int8)),
 			input:    map[string]any{"value": int8(42)},
 			expected: map[string]any{"value": int8(42)},
 		},
 		{
 			name:     "uint8",
-			model:    NewModel(Field(0, "value", Uint8)),
+			model:    newModel(Field(0, "value", Uint8)),
 			input:    map[string]any{"value": uint8(255)},
 			expected: map[string]any{"value": uint8(255)},
 		},
 		{
 			name:     "int16",
-			model:    NewModel(Field(0, "value", Int16)),
+			model:    newModel(Field(0, "value", Int16)),
 			input:    map[string]any{"value": int16(-32768)},
 			expected: map[string]any{"value": int16(-32768)},
 		},
 		{
 			name:     "uint16",
-			model:    NewModel(Field(0, "value", Uint16)),
+			model:    newModel(Field(0, "value", Uint16)),
 			input:    map[string]any{"value": uint16(65535)},
 			expected: map[string]any{"value": uint16(65535)},
 		},
 		{
 			name:     "int32",
-			model:    NewModel(Field(0, "value", Int32)),
+			model:    newModel(Field(0, "value", Int32)),
 			input:    map[string]any{"value": int32(-2147483648)},
 			expected: map[string]any{"value": int32(-2147483648)},
 		},
 		{
 			name:     "uint32",
-			model:    NewModel(Field(0, "value", Uint32)),
+			model:    newModel(Field(0, "value", Uint32)),
 			input:    map[string]any{"value": uint32(4294967295)},
 			expected: map[string]any{"value": uint32(4294967295)},
 		},
 		{
 			name:     "int64",
-			model:    NewModel(Field(0, "value", Int64)),
+			model:    newModel(Field(0, "value", Int64)),
 			input:    map[string]any{"value": int64(-9223372036854775808)},
 			expected: map[string]any{"value": int64(-9223372036854775808)},
 		},
 		{
 			name:     "uint64",
-			model:    NewModel(Field(0, "value", Uint64)),
+			model:    newModel(Field(0, "value", Uint64)),
 			input:    map[string]any{"value": uint64(18446744073709551615)},
 			expected: map[string]any{"value": uint64(18446744073709551615)},
 		},
 		{
 			name:     "float32",
-			model:    NewModel(Field(0, "value", Float32)),
+			model:    newModel(Field(0, "value", Float32)),
 			input:    map[string]any{"value": float32(3.14159)},
 			expected: map[string]any{"value": float32(3.14159)},
 		},
 		{
 			name:     "float64",
-			model:    NewModel(Field(0, "value", Float64)),
+			model:    newModel(Field(0, "value", Float64)),
 			input:    map[string]any{"value": float64(3.141592653589793)},
 			expected: map[string]any{"value": float64(3.141592653589793)},
 		},
 		{
 			name:     "bool_true",
-			model:    NewModel(Field(0, "value", Bool)),
+			model:    newModel(Field(0, "value", Bool)),
 			input:    map[string]any{"value": true},
 			expected: map[string]any{"value": true},
 		},
 		{
 			name:     "bool_false",
-			model:    NewModel(Field(0, "value", Bool)),
+			model:    newModel(Field(0, "value", Bool)),
 			input:    map[string]any{"value": false},
 			expected: map[string]any{"value": false},
 		},
 		{
 			name:     "string",
-			model:    NewModel(Field(0, "value", String)),
+			model:    newModel(Field(0, "value", String)),
 			input:    map[string]any{"value": "Hello, 世界! 🌍"},
 			expected: map[string]any{"value": "Hello, 世界! 🌍"},
 		},
 		//{
 		//	name:     "empty_string",
-		//	model:    NewModel(Field(0, "value", String)),
+		//	model:    newModel(Field(0, "value", String)),
 		//	input:    map[string]any{"value": ""},
 		//	expected: map[string]any{"value": ""},
 		//},
 		{
 			name:     "bytes",
-			model:    NewModel(Field(0, "value", Bytes)),
+			model:    newModel(Field(0, "value", Bytes)),
 			input:    map[string]any{"value": []byte{0, 1, 2, 255, 128}},
 			expected: map[string]any{"value": []byte{0, 1, 2, 255, 128}},
 		},
 		//{
 		//	name:     "empty_bytes",
-		//	model:    NewModel(Field(0, "value", Bytes)),
+		//	model:    newModel(Field(0, "value", Bytes)),
 		//	input:    map[string]any{"value": []byte{}},
 		//	expected: map[string]any{"value": []byte{}},
 		//},
@@ -273,19 +275,19 @@ func TestListTypes(t *testing.T) {
 	}{
 		{
 			name:     "list_of_strings",
-			model:    NewModel(Field(0, "items", List(String))),
+			model:    newModel(Field(0, "items", List(String))),
 			input:    map[string]any{"items": []string{"a", "b", "c"}},
 			expected: map[string]any{"items": []string{"a", "b", "c"}},
 		},
 		{
 			name:     "list_of_ints",
-			model:    NewModel(Field(0, "items", List(Int64))),
+			model:    newModel(Field(0, "items", List(Int64))),
 			input:    map[string]any{"items": []int64{1, 2, 3, 4, 5}},
 			expected: map[string]any{"items": []int64{1, 2, 3, 4, 5}},
 		},
 		{
 			name:     "empty_list",
-			model:    NewModel(Field(0, "items", List(String))),
+			model:    newModel(Field(0, "items", List(String))),
 			input:    map[string]any{"items": []string{}},
 			expected: map[string]any{"items": []string{}},
 		},
@@ -320,13 +322,13 @@ func TestMapTypes(t *testing.T) {
 	}{
 		{
 			name:     "string_to_int_map",
-			model:    NewModel(Field(0, "data", Map(String, Int64))),
+			model:    newModel(Field(0, "data", Map(String, Int64))),
 			input:    map[string]any{"data": map[string]int{"a": 1, "b": 2, "c": 3}},
 			expected: map[string]any{"data": map[string]int64{"a": 1, "b": 2, "c": 3}},
 		},
 		{
 			name:     "empty_map",
-			model:    NewModel(Field(0, "data", Map(String, Int64))),
+			model:    newModel(Field(0, "data", Map(String, Int64))),
 			input:    map[string]any{"data": map[string]int{}},
 			expected: map[string]any{"data": map[string]int64{}},
 		},
@@ -378,7 +380,7 @@ func TestModelOptions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			model := NewModelWithOptions(tt.options,
+			model := newModelWithOptions(tt.options,
 				Field(0, "id", Int64),
 				Field(1, "name", String),
 			)
@@ -391,7 +393,7 @@ func TestModelOptions(t *testing.T) {
 }
 
 func TestFieldOptions(t *testing.T) {
-	model := NewModel(
+	model := newModel(
 		RequiredField(0, "required", String),
 		OptionalField(1, "optional", String),
 		Field(2, "default", String), // Should be required by default
@@ -465,7 +467,7 @@ func TestEdgeCases(t *testing.T) {
 	})
 
 	t.Run("large_string", func(t *testing.T) {
-		model := NewModel(Field(0, "data", String))
+		model := newModel(Field(0, "data", String))
 		largeString := strings.Repeat("A", 1000000) // 1MB string
 
 		input := map[string]any{"data": largeString}
@@ -486,7 +488,7 @@ func TestEdgeCases(t *testing.T) {
 	})
 
 	t.Run("large_byte_slice", func(t *testing.T) {
-		model := NewModel(Field(0, "data", Bytes))
+		model := newModel(Field(0, "data", Bytes))
 		largeBytes := make([]byte, 1000000) // 1MB
 		for i := range largeBytes {
 			largeBytes[i] = byte(i % 256)
@@ -512,7 +514,7 @@ func TestEdgeCases(t *testing.T) {
 
 func TestTypeConversions(t *testing.T) {
 	t.Run("int_conversions", func(t *testing.T) {
-		model := NewModel(Field(0, "value", Int64))
+		model := newModel(Field(0, "value", Int64))
 
 		// Test various int types
 		inputs := []any{
@@ -545,7 +547,7 @@ func TestTypeConversions(t *testing.T) {
 	})
 
 	t.Run("overflow_detection", func(t *testing.T) {
-		model := NewModel(Field(0, "value", Int8))
+		model := newModel(Field(0, "value", Int8))
 
 		// This should fail - value too large for int8
 		data := map[string]any{"value": int(300)}
@@ -558,9 +560,9 @@ func TestTypeConversions(t *testing.T) {
 
 func TestMissingFields(t *testing.T) {
 	// Test encoding with missing fields
-	model := NewModel(
+	model := newModel(
 		Field(0, "required", String),
-		Field(1, "optional", String),
+		OptionalField(1, "optional", String),
 	)
 
 	// Encode with missing field
@@ -725,7 +727,7 @@ func BenchmarkDecodeMap(b *testing.B) {
 }
 
 func BenchmarkEncodeLargeList(b *testing.B) {
-	model := NewModel(Field(0, "items", List(Int64)))
+	model := newModel(Field(0, "items", List(Int64)))
 
 	items := make([]int64, 10000)
 	for i := range items {
@@ -743,7 +745,7 @@ func BenchmarkEncodeLargeList(b *testing.B) {
 }
 
 func BenchmarkDecodeLargeList(b *testing.B) {
-	model := NewModel(Field(0, "items", List(Int64)))
+	model := newModel(Field(0, "items", List(Int64)))
 
 	items := make([]int64, 10000)
 	for i := range items {
@@ -767,7 +769,7 @@ func BenchmarkDecodeLargeList(b *testing.B) {
 }
 
 func BenchmarkEncodeString(b *testing.B) {
-	model := NewModel(Field(0, "text", String))
+	model := newModel(Field(0, "text", String))
 	data := map[string]any{"text": "This is a benchmark string with some content to test performance"}
 
 	b.ResetTimer()
@@ -780,7 +782,7 @@ func BenchmarkEncodeString(b *testing.B) {
 }
 
 func BenchmarkDecodeString(b *testing.B) {
-	model := NewModel(Field(0, "text", String))
+	model := newModel(Field(0, "text", String))
 	data := map[string]any{"text": "This is a benchmark string with some content to test performance"}
 
 	encoded, err := model.Encode(data)

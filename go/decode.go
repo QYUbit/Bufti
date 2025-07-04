@@ -7,6 +7,14 @@ import (
 	"reflect"
 )
 
+// Decode deserializes binary data into the given destination according to the model schema.
+// The destination must be a pointer to a struct or map[string]any.
+// Struct fields are mapped from schema fields using either the field name or the `bufti` tag.
+//
+// Returns ErrInput if dest is not a pointer or is nil.
+// Returns ErrVersion if the data was encoded with an incompatible protocol version.
+// Returns ErrBuffer if the data is corrupted or cannot be parsed.
+// Returns ErrModel if the data references fields not defined in the schema.
 func (m *Model) Decode(data []byte, dest any) error {
 	v := reflect.ValueOf(dest)
 	t := reflect.TypeOf(dest)
@@ -54,7 +62,7 @@ func (m *Model) decode(buf *bytes.Buffer, t reflect.Type, v reflect.Value) error
 }
 
 func (m *Model) decodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value, fieldCount int) error {
-	fieldMap := make(map[string]reflect.Value)
+	fieldMap := make(map[string]reflect.Value, len(m.schema))
 
 	for i := range t.NumField() {
 		field := t.Field(i)
@@ -72,6 +80,18 @@ func (m *Model) decodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value,
 		fieldMap[fieldName] = value
 	}
 
+	for _, field := range m.schema {
+		if field.isRequired == nil {
+			continue
+		}
+		if !*field.isRequired {
+			continue
+		}
+		if _, exists := fieldMap[field.label]; !exists {
+			return fmt.Errorf("%w: required field %s is missing for model %s", ErrBuffer, field.label, m.name)
+		}
+	}
+
 	for range fieldCount {
 		index, err := buf.ReadByte()
 		if err != nil {
@@ -80,7 +100,7 @@ func (m *Model) decodeStruct(buf *bytes.Buffer, t reflect.Type, v reflect.Value,
 
 		schemaField, exists := m.schema[index]
 		if !exists {
-			return fmt.Errorf("%w: index %d does not exist on model %s", ErrModel, index, m.name)
+			return fmt.Errorf("%w: index %d does not exist on model %s", ErrBuffer, index, m.name)
 		}
 
 		if err = schemaField.fieldType.Decode(buf, fieldMap[schemaField.label]); err != nil {
@@ -95,6 +115,7 @@ func (m *Model) decodeMap(buf *bytes.Buffer, t reflect.Type, v reflect.Value, fi
 		return fmt.Errorf("%w: destination has to be a map[string]any, instead: %T", ErrInput, t.String())
 	}
 
+	decodedFields := make(map[byte]bool)
 	for range fieldCount {
 		index, err := buf.ReadByte()
 		if err != nil {
@@ -103,14 +124,28 @@ func (m *Model) decodeMap(buf *bytes.Buffer, t reflect.Type, v reflect.Value, fi
 
 		schemaField, exists := m.schema[index]
 		if !exists {
-			return fmt.Errorf("%w: index %d does not exist on model %s", ErrModel, index, m.name)
+			return fmt.Errorf("%w: index %d does not exist on model %s", ErrBuffer, index, m.name)
 		}
+
+		decodedFields[index] = true
 
 		var mapValue any
 		if err = schemaField.fieldType.Decode(buf, reflect.ValueOf(&mapValue).Elem()); err != nil {
 			return err
 		}
 		v.SetMapIndex(reflect.ValueOf(schemaField.label), reflect.ValueOf(mapValue))
+	}
+
+	for index, field := range m.schema {
+		if field.isRequired == nil {
+			continue
+		}
+		if !*field.isRequired {
+			continue
+		}
+		if !decodedFields[index] {
+			return fmt.Errorf("%w: required field %s is missing for model %s", ErrBuffer, field.label, m.name)
+		}
 	}
 	return nil
 }

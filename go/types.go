@@ -7,13 +7,18 @@ import (
 	"reflect"
 )
 
-// TODO Indirect values before decoding
+// ? Indirect values before decoding
 
+// BuftiType defines the interface for all serializable types in the bufti system.
+// Types implementing this interface can be used as field types in model schemas.
 type BuftiType interface {
+	// Encode serializes the given reflect.Value to the buffer.
 	Encode(*bytes.Buffer, reflect.Value) error
+	// Decode deserializes data from the buffer into the given reflect.Value.
 	Decode(*bytes.Buffer, reflect.Value) error
 }
 
+// SimpleType represents basic primitive types.
 type SimpleType int
 
 const (
@@ -60,10 +65,12 @@ func (t SimpleType) reflectType() (reflect.Type, error) {
 	}
 }
 
+// ListType represents a list/slice of elements of a specific type.
 type ListType struct {
 	elementType BuftiType
 }
 
+// List creates a new list type with the specified element type.
 func List(elementType BuftiType) ListType {
 	return ListType{elementType: elementType}
 }
@@ -119,11 +126,13 @@ func (t ListType) Decode(buf *bytes.Buffer, v reflect.Value) error {
 	return nil
 }
 
+// MapType represents a map with typed keys and values.
 type MapType struct {
 	keyType   SimpleType
 	valueType BuftiType
 }
 
+// Map creates a new map type with the specified key and value types.
 func Map(keyType SimpleType, valueType BuftiType) MapType {
 	return MapType{keyType: keyType, valueType: valueType}
 }
@@ -194,10 +203,13 @@ func (t MapType) Decode(buf *bytes.Buffer, v reflect.Value) error {
 	return nil
 }
 
+// ReferenceType represents a reference to another model, enabling nested structures.
 type ReferenceType struct {
 	model *Model
 }
 
+// Reference creates a new reference type that points to another model.
+// This allows for nested and recursive data structures.
 func Reference(model *Model) ReferenceType {
 	return ReferenceType{model: model}
 }
